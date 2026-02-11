@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "792038270513",
+    "project_id": "exhaust-control-app",
+    "storage_bucket": "exhaust-control-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:792038270513:android:8ace210dcbc29d9ab99710",
+        "android_client_info": {
+          "package_name": "com.example.exhaust_controller_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBS7DFr9kd_Ip0tUwlPsduN3SJaPBdwjMw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
