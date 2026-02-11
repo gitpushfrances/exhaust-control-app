@@ -1,0 +1,15 @@
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/logo.png"
+  
+  # Android adaptive icon (optional but recommended)
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  
+  # Remove old launcher icons
+  remove_alpha_ios: true
+  
+  # Platform-specific configurations
+  android_path: "android/app/src/main/res"
+  ios_path: "ios/Runner/Assets.xcassets/AppIcon.appiconset"

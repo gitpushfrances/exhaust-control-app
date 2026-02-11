@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../utils/app_colors.dart';
 import '../utils/app_text_styles.dart';
+import '../utils/permission_handler.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -43,12 +44,27 @@ class _SplashScreenState extends State<SplashScreen>
     // Start animation
     _controller.forward();
 
-    // Navigate after delay
-    Timer(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/');
-      }
-    });
+    // Check permissions and navigate
+    _initializeApp();
+  }
+
+  /// Initialize app with permission checks
+  Future<void> _initializeApp() async {
+    // Wait for splash animation
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+
+    // Check and request permissions
+    final permissionsGranted = await AppPermissionHandler.requestAllPermissions(context);
+
+    // Small delay for UX
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    if (mounted) {
+      // Navigate to main app (AuthWrapper will handle login/home)
+      Navigator.pushReplacementNamed(context, '/');
+    }
   }
 
   @override
