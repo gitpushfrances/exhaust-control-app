@@ -1,26 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-/// Bluetooth Provider - Manages Bluetooth connection state
-/// This is a mock implementation for UI development
-/// Replace with actual flutter_blue_plus integration when hardware is ready
 class BluetoothProvider with ChangeNotifier {
   bool _isConnected = false;
   bool _isConnecting = false;
   String? _connectedDeviceName;
   String? _connectedDeviceId;
-  int _signalStrength = 0; // 0-100
+  int _signalStrength = 0;
   String? _errorMessage;
+  BluetoothDevice? _connectedDevice;
 
-  // Simulated device list for UI testing
   final List<Map<String, dynamic>> _availableDevices = [];
-  final List<Map<String, dynamic>> _pairedDevices = [
-    {
-      'id': 'device_001',
-      'name': 'Exhaust Controller',
-      'signalStrength': 85,
-      'isAvailable': true,
-    },
-  ];
+  final List<Map<String, dynamic>> _pairedDevices = [];
 
   // Getters
   bool get isConnected => _isConnected;
@@ -32,24 +23,42 @@ class BluetoothProvider with ChangeNotifier {
   List<Map<String, dynamic>> get availableDevices => _availableDevices;
   List<Map<String, dynamic>> get pairedDevices => _pairedDevices;
 
-  /// Connect to a Bluetooth device
+  /// Connect to a real BLE device
   Future<bool> connectToDevice(String deviceId, String deviceName) async {
     _isConnecting = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      // Simulate connection delay
-      await Future.delayed(const Duration(seconds: 2));
+      final allDevices = [..._pairedDevices, ..._availableDevices];
+      final match = allDevices.firstWhere(
+        (d) => d['id'] == deviceId,
+        orElse: () => {},
+      );
+      final device = match['device'] as BluetoothDevice?;
 
-      // TODO: Replace with actual Bluetooth connection
-      // Example: await FlutterBluePlus.instance.connect(deviceId);
+      if (device == null) throw Exception('Device not found');
 
+      await device.connect(timeout: const Duration(seconds: 10));
+
+      _connectedDevice = device;
       _isConnected = true;
       _connectedDeviceId = deviceId;
       _connectedDeviceName = deviceName;
       _signalStrength = 85;
       _isConnecting = false;
+
+      device.connectionState.listen((state) {
+        if (state == BluetoothConnectionState.disconnected) {
+          _isConnected = false;
+          _connectedDevice = null;
+          _connectedDeviceId = null;
+          _connectedDeviceName = null;
+          _signalStrength = 0;
+          notifyListeners();
+        }
+      });
+
       notifyListeners();
       return true;
     } catch (e) {
@@ -64,10 +73,9 @@ class BluetoothProvider with ChangeNotifier {
   /// Disconnect from current device
   Future<void> disconnect() async {
     try {
-      // TODO: Replace with actual Bluetooth disconnection
-      // Example: await FlutterBluePlus.instance.disconnect();
-
+      await _connectedDevice?.disconnect();
       _isConnected = false;
+      _connectedDevice = null;
       _connectedDeviceId = null;
       _connectedDeviceName = null;
       _signalStrength = 0;
@@ -78,35 +86,52 @@ class BluetoothProvider with ChangeNotifier {
     }
   }
 
-  /// Scan for available Bluetooth devices
+  /// Scan for real BLE devices
   Future<void> scanForDevices() async {
     try {
       _availableDevices.clear();
+      _pairedDevices.clear();
       notifyListeners();
 
-      // TODO: Replace with actual Bluetooth scanning
-      // Example: FlutterBluePlus.instance.scan();
-
-      // Simulate scanning
-      await Future.delayed(const Duration(seconds: 2));
-
-      // Mock devices for testing
-      _availableDevices.addAll([
-        {
-          'id': 'device_002',
-          'name': 'Exhaust Ctrl #2',
-          'signalStrength': 72,
-          'isAvailable': true,
-        },
-        {
-          'id': 'device_003',
-          'name': 'Exhaust Ctrl #3',
-          'signalStrength': 55,
-          'isAvailable': true,
-        },
-      ]);
-
+      // Get system bonded devices
+      final systemDevices = FlutterBluePlus.connectedDevices;
+      for (final d in systemDevices) {
+        _pairedDevices.add({
+          'id': d.remoteId.str,
+          'name': d.platformName.isNotEmpty ? d.platformName : 'Unknown Device',
+          'signalStrength': 85,
+          'device': d,
+        });
+      }
       notifyListeners();
+
+      // Scan for nearby devices
+      // Stop any existing scan first
+      await FlutterBluePlus.stopScan();
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
+
+      FlutterBluePlus.scanResults.listen((results) {
+        _availableDevices.clear();
+        for (final r in results) {
+          final name = r.device.platformName.isNotEmpty
+              ? r.device.platformName
+              : r.advertisementData.advName.isNotEmpty
+              ? r.advertisementData.advName
+              : 'Unknown Device';
+          final signal = (r.rssi + 100).clamp(0, 100);
+          _availableDevices.add({
+            'id': r.device.remoteId.str,
+            'name': name,
+            'signalStrength': signal,
+            'device': r.device,
+          });
+        }
+        notifyListeners();
+      });
+
+      await FlutterBluePlus.isScanning
+          .where((scanning) => scanning == false)
+          .first;
     } catch (e) {
       _errorMessage = 'Scan failed: ${e.toString()}';
       notifyListeners();

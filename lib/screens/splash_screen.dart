@@ -53,17 +53,21 @@ class _SplashScreenState extends State<SplashScreen>
     // Wait for splash animation
     await Future.delayed(const Duration(milliseconds: 1500));
 
+    print('>>> Splash: mounted = $mounted');
     if (!mounted) return;
 
-    // Check and request permissions
-    final permissionsGranted = await AppPermissionHandler.requestAllPermissions(context);
+    print('>>> Splash: requesting permissions now');
+    final permissionsGranted = await AppPermissionHandler.requestAllPermissions(
+      context,
+    );
+    print('>>> Splash: permissions result = $permissionsGranted');
 
     // Small delay for UX
     await Future.delayed(const Duration(milliseconds: 500));
 
     if (mounted) {
-      // Navigate to main app (AuthWrapper will handle login/home)
-      Navigator.pushReplacementNamed(context, '/');
+      // Navigate regardless - app handles limited functionality without permissions
+      Navigator.pushReplacementNamed(context, '/auth');
     }
   }
 

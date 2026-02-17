@@ -365,7 +365,34 @@ class _DeviceListItem extends StatelessWidget {
                   )
                 else
                   ElevatedButton(
-                    onPressed: isConnecting ? null : () {},
+                    onPressed: isConnecting
+                        ? null
+                        : () async {
+                            final success = await bluetoothProvider
+                                .connectToDevice(device['id'], device['name']);
+                            if (context.mounted) {
+                              if (success) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('✓ Connected successfully'),
+                                    backgroundColor: Color(0xFF10B981),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                                Navigator.pop(context);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      '✕ Connection failed. Try again.',
+                                    ),
+                                    backgroundColor: Color(0xFFEF4444),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            }
+                          },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF3B82F6),
                       foregroundColor: Colors.white,

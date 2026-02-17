@@ -1,25 +1,24 @@
 # 📊 PROJECT PROGRESS - Exhaust Controller App
 
-**Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System  
-**Technology:** Flutter, Firebase, Bluetooth, GPS  
-**Last Updated:** February 11, 2026, 9:00 PM
+**Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
+**Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
+**Last Updated:** February 17, 2026
 
 ---
 
-## 🎯 Overall Progress: 42% Complete
-
+## 🎯 Overall Progress: 85% Complete
 ```
-[████████████████░░░░░░░░░░░░░░░░] 42%
+[███████████████████████████░░░░░] 85%
 ```
 
 ### Phase Breakdown:
 - ✅ **Foundation:** 100% Complete
 - 🔄 **Phase 1 (UI/UX):** 80% Complete (In Progress)
-- ✅ **Phase 2 (Navigation):** 100% Complete ⭐ NEW!
-- ⏸️ **Phase 3 (Permissions):** 0% (Not Started)
-- ⏸️ **Phase 4 (Bluetooth):** 0% (Not Started)
-- ⏸️ **Phase 5 (GPS):** 0% (Not Started)
-- ⏸️ **Phase 6 (Map):** 0% (Not Started)
+- ✅ **Phase 2 (Navigation):** 100% Complete
+- ✅ **Phase 3 (Permissions):** 100% Complete
+- ✅ **Phase 4 (Bluetooth):** 100% Complete
+- ✅ **Phase 5 (GPS):** 100% Complete ⭐ NEW!
+- ✅ **Phase 6 (Map):** 100% Complete ⭐ NEW!
 - ⏸️ **Phase 7 (Automation):** 0% (Not Started)
 
 ---
@@ -28,151 +27,12 @@
 
 ---
 
-### ✅ PHASE 0: FOUNDATION (100% Complete)
+### ✅ PHASE 6: MAP INTEGRATION (100% Complete) ⭐ NEW!
 
-**Goal:** Set up core project infrastructure and authentication
+**Goal:** Display real OpenStreetMap with user location and restricted areas
 
-**Status:** ✅ COMPLETE  
-**Completion Date:** Before Feb 11, 2026
-
-#### Completed Tasks:
-- [x] Flutter project initialization
-- [x] Firebase setup and configuration
-- [x] Firebase Authentication integration
-- [x] Provider state management setup
-- [x] Basic routing structure
-- [x] Auth screens (login/signup - basic version)
-- [x] Home screen placeholder
-- [x] Cloud Firestore setup
-- [x] Package dependencies installation
-
-#### Deliverables:
-- ✅ Working authentication system
-- ✅ User can sign up and login
-- ✅ Session persistence
-- ✅ Error handling for auth
-- ✅ Basic UI structure
-
-#### Files Created:
-```
-lib/
-├── main.dart
-├── providers/
-│   ├── auth_provider.dart
-│   ├── bluetooth_provider.dart
-│   ├── exhaust_provider.dart
-│   └── restricted_areas_provider.dart
-├── services/
-│   ├── auth_service.dart
-│   └── firestore_service.dart
-├── screens/
-│   ├── login_screen.dart (basic)
-│   ├── signup_screen.dart (basic)
-│   ├── home_screen.dart (basic)
-│   ├── dashboard_screen.dart
-│   ├── profile_screen.dart
-│   ├── map_screen.dart
-│   ├── main_navigation_screen.dart
-│   └── splash_screen.dart (basic)
-└── models/
-    └── restricted_area.dart (basic)
-```
-
----
-
-### 🔄 PHASE 1: UI/UX FOUNDATION & BRANDING (80% Complete)
-
-**Goal:** Transform basic UI into professional, production-ready interface
-
-**Status:** 🔄 IN PROGRESS  
-**Started:** February 11, 2026  
-**Target Completion:** February 12, 2026
-
-#### Progress: 80%
-```
-[████████████████████████░░░░░░░░] 80%
-```
-
-#### Completed Tasks:
-- [x] Design professional color system
-- [x] Create typography scale
-- [x] Build CustomButton component
-- [x] Build CustomTextField component
-- [x] Create branded splash screen
-- [x] Optimize login screen
-- [x] Optimize signup screen
-- [x] Improve home screen
-- [x] Update theme in main.dart
-- [x] Document installation process
-
-#### In Progress:
-- [ ] 🔄 Add ReWatch logo to assets (20% - waiting for file placement)
-- [ ] 🔄 Fix import errors (90% - Phase 2 fixes applied)
-- [ ] 🔄 Test all screens (60% - navigation working)
-
-#### Pending Tasks:
-- [ ] ⏸️ Final animation polish
-- [ ] ⏸️ Cross-platform testing
-- [ ] ⏸️ Dark mode preparation
-- [ ] ⏸️ Accessibility audit
-
-#### Deliverables:
-- ✅ Professional color palette (Blue #2563EB primary, Teal #1AA3A3 accent)
-- ✅ Typography system with 12+ text styles
-- ✅ 2 reusable UI components (Button, TextField)
-- ✅ 4 optimized screens (Splash, Login, Signup, Home)
-- ✅ Smooth animations and transitions
-- ⏳ ReWatch logo integration (pending)
-
-#### Files Created:
-```
-lib/
-├── utils/
-│   ├── app_colors.dart ✅
-│   └── app_text_styles.dart ✅
-├── widgets/
-│   ├── custom_button.dart ✅
-│   └── custom_text_field.dart ✅
-└── screens/
-    ├── splash_screen.dart ✅ (optimized)
-    ├── login_screen.dart ✅ (optimized)
-    ├── signup_screen.dart ✅ (optimized)
-    └── home_screen.dart ✅ (optimized)
-
-docs/
-└── INSTALLATION_GUIDE.md ✅
-```
-
-#### Known Issues:
-1. ❌ **CRITICAL:** Logo file `assets/images/logo.png` missing
-   - **Impact:** Splash and login screens show fallback icon
-   - **Fix Required:** Add ReWatch logo to assets/images/
-   
-2. ❌ **CRITICAL:** CustomTextField widget import errors
-   - **Impact:** Login/Signup screens have compilation errors
-   - **Fix Required:** Ensure widget is in lib/widgets/ directory
-
-3. ⚠️ **MINOR:** Deprecation warnings for `.withOpacity()`
-   - **Impact:** Future-proofing needed
-   - **Fix:** Replace with `.withValues()` in next update
-
-#### Next Steps:
-1. **IMMEDIATE:** Add logo file to assets
-2. **IMMEDIATE:** Verify all widget files are in correct locations
-3. Run `flutter pub get`
-4. Test on emulator/device
-5. Fix any remaining import errors
-
----
-
-### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
-
-**Goal:** Implement bottom navigation and proper dashboard structure
-
-**Status:** ✅ COMPLETE  
-**Started:** February 11, 2026, 8:42 PM  
-**Completed:** February 11, 2026, 8:56 PM  
-**Duration:** ~15 minutes
+**Status:** ✅ COMPLETE
+**Completion Date:** February 17, 2026
 
 #### Progress: 100%
 ```
@@ -180,216 +40,300 @@ docs/
 ```
 
 #### Completed Tasks:
-- [x] Fixed critical navigation bug in main.dart
-- [x] Integrated MainNavigationScreen as post-login screen
-- [x] Implemented 4-tab bottom navigation (Home, Map, Stats, Profile)
-- [x] Created StatsScreen with complete UI
-- [x] Enhanced RestrictedArea model with Firestore methods
-- [x] Added GPS location detection logic
-- [x] Fixed AddRestrictedAreaScreen constructor error
-- [x] Integrated all 4 providers (Auth, Bluetooth, Exhaust, RestrictedAreas)
-- [x] Implemented IndexedStack for state preservation
-- [x] Verified tab switching functionality
-- [x] Fixed all compilation errors
-- [x] Tested post-login navigation flow
+- [x] Install `flutter_map` and `latlong2` packages
+- [x] Replace `_MapPlaceholder` with real `FlutterMap` widget
+- [x] Add OSM tile layer
+- [x] Add motorcycle marker at user's GPS position
+- [x] Add red circle overlays for restricted areas from Firestore
+- [x] Implement `MapController` for programmatic control
+- [x] Center-on-user button working
+- [x] Remove dead placeholder classes (`_MapPlaceholder`, `_GridPainter`, `_MapSetupDialog`)
+- [x] Remove bottom info panel (Tracking/Speed/Trip Time)
 
 #### Deliverables:
-- ✅ 4-tab bottom navigation bar (Home, Map, Stats, Profile)
-- ✅ DashboardScreen as Home tab
-- ✅ StatsScreen with trip statistics and charts
-- ✅ MapScreen with GPS integration
-- ✅ ProfileScreen with account management
-- ✅ RestrictedArea model with toMap(), fromMap(), containsPoint()
-- ✅ All providers properly wired
-- ✅ Smooth tab transitions with state preservation
+- ✅ Real OSM tiles loading on physical device
+- ✅ Pinch to zoom, drag to pan
+- ✅ Motorcycle marker at real GPS position
+- ✅ Red circles for restricted areas
+- ✅ Center button snaps to user location
+- ✅ Location overlay with live coords + 8s refresh badge
 
 #### Files Modified:
 ```
 lib/
-├── main.dart 🔄 (routing fix + provider integration)
-├── models/
-│   └── restricted_area.dart 🔄 (added 3 methods)
 └── screens/
-    └── manage_restricted_areas_screen.dart 🔄 (const fix)
+    └── map_screen.dart    🔄 Full rewrite — real OSM map
 ```
 
-#### Files Created:
+#### Packages Added:
+```yaml
+flutter_map: ^8.2.2
+latlong2: ^0.9.1
+```
+
+---
+
+### ✅ PHASE 5: GPS & LOCATION SERVICES (100% Complete) ⭐ NEW!
+
+**Goal:** Track user location in real time and detect restricted areas
+
+**Status:** ✅ COMPLETE
+**Completion Date:** February 17, 2026
+
+#### Progress: 100%
+```
+[████████████████████████████████] 100%
+```
+
+#### Completed Tasks:
+- [x] Implement `Geolocator.getCurrentPosition()` with high accuracy
+- [x] Set up 8-second `Timer.periodic` for continuous updates
+- [x] Auto-center map on first GPS fix only
+- [x] Move marker to real position on every update
+- [x] Install and integrate `geocoding` package
+- [x] Implement reverse geocoding (coords → human-readable address)
+- [x] Fallback to raw coords if geocoding fails
+- [x] Push live location + address to `ExhaustProvider`
+- [x] Dashboard location card reads real address from `ExhaustProvider`
+- [x] Restricted area check runs on every GPS update
+- [x] `isInRestrictedArea` badge on dashboard updates in real time
+- [x] Timer cancelled on `dispose()` — no memory leaks
+
+#### Deliverables:
+- ✅ Real GPS position every 8 seconds
+- ✅ Human-readable address (e.g. "Sumulong Highway, Antipolo, Calabarzon")
+- ✅ Dashboard location card fully dynamic
+- ✅ Restricted area detection on every GPS tick
+- ✅ Map + Dashboard fully synced via `ExhaustProvider`
+
+#### Files Modified:
 ```
 lib/
 └── screens/
-    └── stats_screen.dart ✨ NEW
+    └── map_screen.dart    🔄 GPS fetch, geocoding, provider sync
 ```
 
-#### Files Used (Existing):
-```
-lib/
-└── screens/
-    ├── main_navigation_screen.dart ✅ (4-tab navigation)
-    ├── dashboard_screen.dart ✅ (Home tab)
-    ├── map_screen.dart ✅ (Map tab)
-    └── profile_screen.dart ✅ (Profile tab)
+#### Packages Added:
+```yaml
+geocoding: ^4.0.0
 ```
 
-#### Bug Fixes:
-1. ✅ **CRITICAL:** Navigation bug - AuthWrapper routing to wrong screen
-   - **Before:** `return const HomeScreen();` (simple welcome screen)
-   - **After:** `return const MainNavigationScreen();` (4-tab navigation)
-   - **Impact:** Users can now access all app features after login
+#### Key Implementation:
+```dart
+// 8-second GPS update
+_locationTimer = Timer.periodic(
+  const Duration(seconds: 8),
+  (_) => _fetchLocation(),
+);
 
-2. ✅ **CRITICAL:** RestrictedArea.containsPoint() method missing
-   - **Fix:** Implemented with Haversine distance formula
-   - **Impact:** GPS-based automation now possible
+// Reverse geocoding
+final placemarks = await placemarkFromCoordinates(lat, lng);
+final p = placemarks.first;
+address = [p.street, p.subLocality, p.locality, p.administrativeArea]
+    .where((s) => s != null && s.isNotEmpty)
+    .join(', ');
 
-3. ✅ **CRITICAL:** RestrictedArea.toMap() / fromMap() missing
-   - **Fix:** Added Firestore serialization methods
-   - **Impact:** Can now save/load restricted areas from database
-
-4. ✅ **ERROR:** StatsScreen doesn't exist
-   - **Fix:** Created complete stats_screen.dart with UI
-   - **Impact:** Stats tab now functional
-
-5. ✅ **ERROR:** const AddRestrictedAreaScreen() error
-   - **Fix:** Removed const keyword (widget has state)
-   - **Impact:** Can now add restricted areas without errors
-
-#### Technical Improvements:
-- ✅ Provider architecture complete (4 providers)
-- ✅ Navigation architecture using IndexedStack
-- ✅ State preservation across tab switches
-- ✅ Haversine formula for GPS accuracy
-- ✅ Firestore integration ready
-- ✅ All compilation errors resolved
+// Push to providers
+exhaustProvider.updateLocation(
+  lat: position.latitude,
+  lng: position.longitude,
+  locationName: address,
+  isRestricted: isRestricted,
+);
+```
 
 #### Testing Results:
-- ✅ Login flow → Navigation appears
-- ✅ 4 tabs display correctly
-- ✅ Tab switching works smoothly
-- ✅ Dashboard shows Bluetooth controls
-- ✅ Stats screen displays correctly
-- ✅ Map screen shows placeholder
-- ✅ Profile screen loads
-- ✅ All providers accessible
-- ✅ No compilation errors
-- ✅ Hot restart preserves navigation
-
-#### Next Steps:
-Phase 2 is complete and ready for Phase 3 (Device Permissions).
+- ✅ Map opens → real tiles load
+- ✅ Marker at actual GPS position
+- ✅ Marker updates every 8 seconds
+- ✅ Dashboard shows real address
+- ✅ Address updates every 8 seconds
+- ✅ Restricted area detection working
+- ✅ Physical device tested: Infinix X6833B (Android 13)
 
 ---
 
-### ⏸️ PHASE 3: DEVICE PERMISSIONS (0% Complete)
+### ✅ PHASE 4: BLUETOOTH INTEGRATION (100% Complete)
 
-**Goal:** Request and manage GPS and Bluetooth permissions
+**Goal:** Connect to real Bluetooth/BLE devices using flutter_blue_plus
 
-**Status:** ⏸️ NOT STARTED  
-**Target Start:** February 12, 2026  
-**Target Completion:** February 14, 2026
+**Status:** ✅ COMPLETE
+**Completion Date:** February 17, 2026
 
-#### Planned Tasks:
-- [ ] Implement GPS permission request flow
-- [ ] Implement Bluetooth permission request flow
-- [ ] Create permission status indicators
-- [ ] Add permission troubleshooting UI
-- [ ] Handle permission denial gracefully
-- [ ] Test on Android & iOS
+#### Progress: 100%
+```
+[████████████████████████████████] 100%
+```
 
-#### Target Deliverables:
-- Permission request dialogs
-- Status indicators
-- Error handling
-- User guides
+#### Completed Tasks:
+- [x] Replace mock Bluetooth provider with real BLE implementation
+- [x] Implement real BLE device scanning
+- [x] Fetch system bonded/paired devices
+- [x] Display real nearby BLE devices with signal strength
+- [x] Fix connect button (was calling empty onPressed)
+- [x] Fix multiple scan trigger bug
+- [x] Downgrade flutter_blue_plus to free version (1.31.15)
+- [x] Fix splash screen routing (was bypassing splash entirely)
+- [x] Fix Android version detection for Bluetooth permissions
+- [x] Resolve flutter_blue_plus license requirement issue
 
----
+#### Deliverables:
+- ✅ Real BLE device scanning on physical device
+- ✅ System bonded devices in "Previously Paired" section
+- ✅ Nearby BLE devices in "Available Devices" section
+- ✅ Signal strength as RSSI converted to 0-100%
+- ✅ Connect/Reconnect buttons fully functional
+- ✅ Auto-disconnect detection via connectionState stream
+- ✅ Dashboard updates on connect/disconnect
 
-### ⏸️ PHASE 4: BLUETOOTH INTEGRATION (0% Complete)
-
-**Goal:** Connect to exhaust controller hardware via Bluetooth
-
-**Status:** ⏸️ NOT STARTED  
-**Target Start:** February 14, 2026  
-**Target Completion:** February 16, 2026
-
-#### Planned Tasks:
-- [ ] Implement device scanning
-- [ ] Create pairing UI
-- [ ] Handle connection states
-- [ ] Send commands to hardware
-- [ ] Receive status updates
-- [ ] Test with actual hardware
-
----
-
-### ⏸️ PHASE 5: GPS & LOCATION SERVICES (0% Complete)
-
-**Goal:** Track user location and detect restricted areas
-
-**Status:** ⏸️ NOT STARTED  
-**Target Start:** February 16, 2026  
-**Target Completion:** February 18, 2026
-
-#### Planned Tasks:
-- [ ] Implement real-time location tracking
-- [ ] Set up geofencing
-- [ ] Detect restricted area entry/exit
-- [ ] Handle background location
-- [ ] Optimize battery usage
+#### Bugs Fixed (6 total):
+1. ✅ Splash screen never shown
+2. ✅ Route conflict (`'/'` → `'/auth'`)
+3. ✅ Wrong Android version detection
+4. ✅ Connect button broken (empty `onPressed`)
+5. ✅ Multiple scan triggers
+6. ✅ flutter_blue_plus v2 paid license
 
 ---
 
-### ⏸️ PHASE 6: MAP INTEGRATION (0% Complete)
+### ✅ PHASE 3: DEVICE PERMISSIONS (100% Complete)
 
-**Goal:** Display user location and restricted areas on OpenStreetMap
+**Goal:** Request and manage GPS and Bluetooth permissions professionally
 
-**Status:** ⏸️ NOT STARTED  
-**Target Start:** February 18, 2026  
-**Target Completion:** February 20, 2026
+**Status:** ✅ COMPLETE
+**Completion Date:** February 11, 2026, 9:30 PM
 
-#### Planned Tasks:
-- [ ] Integrate OpenStreetMap
-- [ ] Display user location
-- [ ] Show restricted areas
-- [ ] Add map controls
-- [ ] Implement area management
+#### Completed Tasks:
+- [x] Create `AppPermissionHandler` class
+- [x] Bluetooth permissions (Android 12+ support)
+- [x] Location permissions
+- [x] Beautiful Awesome Dialog permission modals
+- [x] Retry logic and settings deep link
+- [x] Update AndroidManifest.xml (7 permissions)
+- [x] Fix all build errors
+
+---
+
+### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
+
+**Goal:** Implement bottom navigation and proper dashboard structure
+
+**Status:** ✅ COMPLETE
+**Completed:** February 11, 2026, 8:56 PM
+
+#### Completed Tasks:
+- [x] Fixed critical navigation bug (AuthWrapper → MainNavigationScreen)
+- [x] 4-tab bottom navigation (Home, Map, Stats, Profile)
+- [x] StatsScreen with trip statistics
+- [x] RestrictedArea model (Haversine formula, Firestore methods)
+- [x] State preservation with IndexedStack
+
+---
+
+### 🔄 PHASE 1: UI/UX FOUNDATION & BRANDING (80% Complete)
+
+**Goal:** Transform basic UI into professional interface
+
+**Status:** 🔄 IN PROGRESS
+**Started:** February 11, 2026
+
+#### Progress: 80%
+```
+[████████████████████████░░░░░░░░] 80%
+```
+
+#### Completed:
+- [x] Professional color system
+- [x] Typography scale
+- [x] CustomButton + CustomTextField components
+- [x] Branded splash screen
+- [x] Optimized login/signup screens
+
+#### Pending:
+- [ ] ⏳ ReWatch logo integration (waiting for asset file)
+- [ ] ⏸️ Final animation polish
+- [ ] ⏸️ Dark mode preparation
+
+---
+
+### ✅ PHASE 0: FOUNDATION (100% Complete)
+
+**Status:** ✅ COMPLETE
+**Completed:** Before February 11, 2026
+
+#### Deliverables:
+- ✅ Firebase authentication
+- ✅ Provider state management
+- ✅ Basic routing structure
+- ✅ Core screens created
 
 ---
 
 ### ⏸️ PHASE 7: CORE AUTOMATION (0% Complete)
 
-**Goal:** Automatic exhaust control based on location
+**Goal:** Automatic exhaust control triggered by GPS + BLE
 
-**Status:** ⏸️ NOT STARTED  
-**Target Start:** February 20, 2026  
-**Target Completion:** February 23, 2026
+**Status:** ⏸️ NOT STARTED
+**Target Start:** February 18, 2026
 
 #### Planned Tasks:
-- [ ] Implement automatic valve control
-- [ ] Area-based switching logic
-- [ ] Notification system
-- [ ] History tracking
-- [ ] Analytics dashboard
+- [ ] Define ESP32 BLE service/characteristic UUIDs with hardware team
+- [ ] Send valve OPEN command via BLE
+- [ ] Send valve CLOSE command via BLE
+- [ ] Auto-trigger on geofence entry/exit
+- [ ] Notification when state changes automatically
+- [ ] Log history of automatic closures
+
+---
+
+## 📦 FULL PACKAGE DEPENDENCIES
+
+```yaml
+# Core
+firebase_core: ^4.4.0
+firebase_auth: ^6.1.4
+cloud_firestore: ^6.1.2
+provider: ^6.1.5+1
+shared_preferences: ^2.5.4
+
+# Hardware
+flutter_blue_plus: 1.31.15
+geolocator: ^14.0.2
+permission_handler: ^12.0.1
+device_info_plus: ^10.1.0
+
+# Map & Location
+flutter_map: ^8.2.2
+latlong2: ^0.9.1
+geocoding: ^4.0.0
+
+# UI
+font_awesome_flutter: ^10.7.0
+awesome_dialog: ^3.2.1
+flutter_svg: ^2.0.10
+lottie: ^3.1.2
+
+# Dev
+flutter_launcher_icons: ^0.14.1
+```
 
 ---
 
 ## 📈 METRICS
 
 ### Code Statistics:
-- **Total Files:** ~35
-- **Total Lines of Code:** ~3500+ (estimated)
-- **Widgets Created:** 16+
+- **Total Files:** ~42
+- **Total Lines of Code:** ~5,200+ (estimated)
+- **Widgets Created:** 18+
 - **Screens Created:** 11+
 - **Services:** 3
 - **Providers:** 4
-- **Models:** 2+
+- **Utils:** 4
 
-### Test Coverage:
-- **Unit Tests:** 0% (planned for Phase 8)
-- **Widget Tests:** 0% (planned for Phase 8)
-- **Integration Tests:** 0% (planned for Phase 8)
-
-### Performance:
-- **App Size:** ~15MB (estimated)
-- **Cold Start Time:** <3s (target)
-- **UI Frame Rate:** 60fps (target)
+### Package Dependencies:
+- **Production:** 18 packages
+- **Dev:** 2 packages
+- **Total:** 20 packages
 
 ---
 
@@ -397,108 +341,101 @@ Phase 2 is complete and ready for Phase 3 (Device Permissions).
 
 ### ✅ Milestone 1: Foundation (ACHIEVED)
 - Date: Before Feb 11, 2026
-- Authentication working
-- Basic structure complete
+- Authentication working ✅
 
 ### 🔄 Milestone 2: Professional UI (80%)
 - Target: Feb 12, 2026
-- Modern, polished interface
-- Reusable components
+- Modern interface ✅ (pending logo)
 
-### ✅ Milestone 3: Full Navigation (ACHIEVED) ⭐
+### ✅ Milestone 3: Full Navigation (ACHIEVED)
 - Date: Feb 11, 2026
-- Complete app navigation
-- 4 working tabs
-- State preservation
+- 4 working tabs ✅
 
-### ⏸️ Milestone 4: Hardware Ready (0%)
-- Target: Feb 17, 2026
-- Bluetooth & GPS working
+### ✅ Milestone 4: Permission System (ACHIEVED)
+- Date: Feb 11, 2026
+- Bluetooth & GPS permissions ✅
 
-### ⏸️ Milestone 5: MVP Complete (0%)
-- Target: Feb 23, 2026
-- Full automation working
+### ✅ Milestone 5: Hardware Ready (ACHIEVED)
+- Date: Feb 17, 2026
+- Real BLE scanning & connection ✅
+
+### ✅ Milestone 6: Live Map & GPS (ACHIEVED) ⭐ NEW!
+- Date: Feb 17, 2026
+- Real OSM map + GPS tracking + geocoding ✅
+
+### ⏸️ Milestone 7: MVP Complete (0%)
+- Target: Feb 20, 2026
+- Full automation ⏸️
 
 ---
 
 ## 🚀 VELOCITY
 
-### Current Sprint:
-- **Sprint:** Phase 1 - UI/UX Foundation (80%)
-- **Start Date:** Feb 11, 2026
-- **Tasks Completed:** 10/13 (77%)
-- **Blockers:** Logo asset needed
-
-### Previous Sprint:
-- **Sprint:** Phase 2 - Navigation (100%)
-- **Start Date:** Feb 11, 2026, 8:42 PM
-- **Completion Date:** Feb 11, 2026, 8:56 PM
-- **Duration:** 15 minutes
-- **Tasks Completed:** 12/12 (100%)
-- **Blockers:** None (all resolved)
-
-### Average Completion Rate:
-- **Phase 0:** 100% (baseline)
-- **Phase 1:** 80% and climbing
-- **Phase 2:** 100% (completed)
+### Sprint History:
+1. **Phase 0 - Foundation:** 100% ✅
+2. **Phase 1 - UI/UX:** 80% 🔄 (logo pending)
+3. **Phase 2 - Navigation:** 100% ✅ (15 min)
+4. **Phase 3 - Permissions:** 100% ✅ (30 min)
+5. **Phase 4 - Bluetooth:** 100% ✅
+6. **Phase 5 - GPS:** 100% ✅ ⭐ NEW!
+7. **Phase 6 - Map:** 100% ✅ ⭐ NEW!
 
 ---
 
 ## 🎓 CLIENT PRESENTATION READINESS
 
 ### Demo-Ready Features:
-1. ✅ User can sign up and login
-2. ✅ Professional, modern UI
-3. ✅ Full 4-tab navigation ⭐ NEW!
-4. ✅ Dashboard with Bluetooth UI ⭐ NEW!
-5. ✅ Statistics screen ⭐ NEW!
-6. ✅ Map screen (placeholder) ⭐ NEW!
-7. ✅ Profile management ⭐ NEW!
-8. ⏳ Logo branding (pending)
-9. ❌ Bluetooth connection (not yet)
-10. ❌ GPS tracking (not yet)
-11. ❌ Automatic control (not yet)
+1. ✅ User signup and login
+2. ✅ Professional modern UI
+3. ✅ Full 4-tab navigation
+4. ✅ Dashboard with Bluetooth UI
+5. ✅ Statistics screen
+6. ✅ Real OpenStreetMap ⭐ NEW!
+7. ✅ Live GPS tracking (8s updates) ⭐ NEW!
+8. ✅ Human-readable address on dashboard ⭐ NEW!
+9. ✅ Restricted area detection live ⭐ NEW!
+10. ✅ Profile management
+11. ✅ Permission system with beautiful dialogs
+12. ✅ Real BLE device scanning
+13. ✅ Real device connection
+14. ⏳ Logo branding (pending asset)
+15. ❌ Automatic valve control (Phase 7)
 
-### Presentation Score: **42/100** (+7 points)
-- Phase 2 completion adds significant demo value
-- Need Phases 3-7 for full functionality
+### Presentation Score: **85/100** (+15 from Phase 5 & 6)
+
+**Why +15 points:**
+- Real live map replaces placeholder — major visual upgrade
+- GPS tracking every 8 seconds shows real-world functionality
+- Human-readable address on dashboard looks polished and complete
+- Map + Dashboard fully in sync — demonstrates integrated system
 
 ---
 
 ## 📝 NOTES
 
-### Recent Changes (Phase 2):
-- **Major Achievement:** Fixed critical navigation bug
-- **Impact:** Users can now access all app features
-- **Technical:** 4 providers integrated, state management complete
-- **Quality:** All compilation errors resolved
-
-### Team Decisions:
-- Prioritizing UI/UX first for better client impression
-- Using free OpenStreetMap instead of Google Maps
-- Four navigation tabs (Home, Map, Stats, Profile)
-- IndexedStack for better performance and state preservation
+### Technical Decisions:
+- **flutter_map 8.2.2:** Upgraded from 7.0.2 during install — API compatible, no breaking changes
+- **geocoding 4.0.0:** No API key needed, uses device's built-in geocoder
+- **8-second interval:** Balance between battery life and responsiveness
+- **First-fix only auto-center:** Lets user pan freely after initial location lock
 
 ### Technical Debt:
-- Some deprecation warnings to address
-- Need comprehensive testing suite
-- Documentation needs expansion
-- Logo asset still pending
+- Debug `print('>>> ...')` statements still in `splash_screen.dart` and `permission_handler.dart`
+- BLE scan not filtered to ESP32 only (shows all nearby devices)
+- ESP32 BLE service/characteristic UUIDs not yet defined
+- Background location not implemented (app must be foreground for tracking)
+- iOS Info.plist not configured (no iOS setup yet)
 
 ### Risks:
-- Hardware integration untested
-- GPS accuracy in restricted areas
-- Battery consumption with background tracking
-- Bluetooth connection stability unknown
+- ESP32 BLE protocol must be defined before Phase 7
+- Background location will require additional permissions and testing
+- Geocoding may return empty results in areas with sparse OSM data
 
-### Recent Wins (Phase 2):
-- ✅ Navigation fully functional
-- ✅ All providers working
-- ✅ Stats screen complete
-- ✅ GPS model ready for automation
-- ✅ Zero compilation errors
+### Next Steps:
+- **Immediate:** Get ESP32 BLE UUID definitions from hardware team
+- **Phase 7:** Implement automatic valve open/close commands via BLE
 
 ---
 
-**For detailed changes, see:** [CHANGELOG.md](./CHANGELOG.md)  
-**For installation instructions, see:** [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md)
+**For detailed changes, see:** [CHANGELOG.md](./CHANGELOG.md)
+**Last Updated:** February 17, 2026

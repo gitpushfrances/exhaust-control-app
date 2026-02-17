@@ -1,17 +1,14 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../providers/exhaust_provider.dart';
 import '../providers/restricted_areas_provider.dart';
 import 'manage_restricted_areas_screen.dart';
 
-/// Map Screen - Shows user location and restricted areas
-/// Using OpenStreetMap (free alternative to Google Maps)
-///
-/// To use: Add flutter_map and latlong2 packages to pubspec.yaml
-/// ```
-/// flutter pub add flutter_map latlong2
-/// ```
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
 
@@ -20,13 +17,99 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  // Simulated location (will be replaced with actual GPS)
-  double _currentLat = 14.5995; // Philippines (Antipolo area)
+  double _currentLat = 14.5995;
   double _currentLng = 121.0084;
+  bool _locationReady = false;
+  late final MapController _mapController;
+  Timer? _locationTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+    _fetchLocation();
+    // Update every 8 seconds
+    _locationTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _fetchLocation(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _locationTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _fetchLocation() async {
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      if (!mounted) return;
+
+      // Reverse geocode to human-readable address
+      String address =
+          '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+      try {
+        final placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        if (placemarks.isNotEmpty) {
+          final p = placemarks.first;
+          final parts = [
+            p.street,
+            p.subLocality,
+            p.locality,
+            p.administrativeArea,
+          ].where((s) => s != null && s.isNotEmpty).toList();
+          if (parts.isNotEmpty) {
+            address = parts.join(', ');
+          }
+        }
+      } catch (_) {
+        // Fallback to raw coords if geocoding fails
+      }
+
+      final wasReady = _locationReady;
+      setState(() {
+        _currentLat = position.latitude;
+        _currentLng = position.longitude;
+        _locationReady = true;
+      });
+
+      // Update exhaust provider with real coords + address
+      final exhaustProvider = context.read<ExhaustProvider>();
+      final areasProvider = context.read<RestrictedAreasProvider>();
+      final isRestricted = areasProvider.isPointInRestrictedArea(
+        position.latitude,
+        position.longitude,
+      );
+      exhaustProvider.updateLocation(
+        lat: position.latitude,
+        lng: position.longitude,
+        locationName: address,
+        isRestricted: isRestricted,
+      );
+
+      // Auto-center map on first fix only
+      if (!wasReady) {
+        _mapController.move(LatLng(_currentLat, _currentLng), 15.0);
+      }
+    } catch (e) {
+      // Keep last known position on error
+    }
+  }
+
+  void _centerOnUser() {
+    _mapController.move(LatLng(_currentLat, _currentLng), 15.0);
+  }
 
   @override
   Widget build(BuildContext context) {
     final exhaustProvider = context.watch<ExhaustProvider>();
+    final areasProvider = context.watch<RestrictedAreasProvider>();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -42,7 +125,6 @@ class _MapScreenState extends State<MapScreen> {
           ),
         ),
         actions: [
-          // Manage Areas button
           IconButton(
             icon: const Icon(Icons.edit_location_alt, color: Color(0xFF3B82F6)),
             tooltip: 'Manage Areas',
@@ -55,206 +137,88 @@ class _MapScreenState extends State<MapScreen> {
               );
             },
           ),
-          // Center on user location button
           IconButton(
             icon: const Icon(Icons.my_location, color: Color(0xFF3B82F6)),
-            onPressed: () {
-              // TODO: Center map on user location
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Centering on your location...'),
-                  duration: Duration(seconds: 1),
-                ),
-              );
-            },
+            onPressed: _centerOnUser,
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // Map Container (placeholder until flutter_map is installed)
-          Expanded(
-            child: Stack(
-              children: [
-                // Map Placeholder
-                _MapPlaceholder(
-                  currentLat: _currentLat,
-                  currentLng: _currentLng,
-                ),
-
-                // Location Info Card (overlay)
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  right: 16,
-                  child: _LocationInfoOverlay(
-                    latitude: _currentLat,
-                    longitude: _currentLng,
-                    locationName: exhaustProvider.currentLocation,
-                  ),
-                ),
-
-                // Restricted Area Toggle (overlay)
-                Positioned(
-                  bottom: 24,
-                  left: 16,
-                  right: 16,
-                  child: _RestrictedAreaControls(),
-                ),
-              ],
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: LatLng(_currentLat, _currentLng),
+              initialZoom: 15.0,
+              minZoom: 5.0,
+              maxZoom: 18.0,
             ),
-          ),
-
-          // Bottom Info Panel
-          _BottomInfoPanel(),
-        ],
-      ),
-    );
-  }
-}
-
-/// Map Placeholder - Shows simple map interface
-/// Replace this with actual flutter_map implementation
-class _MapPlaceholder extends StatelessWidget {
-  final double currentLat;
-  final double currentLng;
-
-  const _MapPlaceholder({required this.currentLat, required this.currentLng});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFE8F3F8),
-      child: Stack(
-        children: [
-          // Grid pattern to simulate map
-          CustomPaint(size: Size.infinite, painter: _GridPainter()),
-
-          // Center location marker
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF3B82F6).withOpacity(0.3),
-                        blurRadius: 20,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.motorcycle,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Text(
-                    'Your Location',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Instructions overlay
-          Positioned(
-            top: 100,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          'Map Preview Mode',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Install flutter_map for live map',
-                      style: TextStyle(fontSize: 12, color: Colors.white70),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () {
-                        // Show installation instructions
-                        showDialog(
-                          context: context,
-                          builder: (context) => _MapSetupDialog(),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.white.withOpacity(0.2),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                      ),
-                      child: const Text(
-                        'Setup Instructions',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.exhaust_controller_app',
               ),
+              CircleLayer(
+                circles: areasProvider.areas.map((area) {
+                  return CircleMarker(
+                    point: LatLng(area.latitude, area.longitude),
+                    radius: area.radius,
+                    color: const Color(0xFFEF4444).withOpacity(0.2),
+                    borderColor: const Color(0xFFEF4444),
+                    borderStrokeWidth: 2,
+                    useRadiusInMeter: true,
+                  );
+                }).toList(),
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: LatLng(_currentLat, _currentLng),
+                    width: 48,
+                    height: 48,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3B82F6),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF3B82F6).withOpacity(0.4),
+                            blurRadius: 12,
+                            spreadRadius: 3,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.motorcycle,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          // Location Info Overlay
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: _LocationInfoOverlay(
+              latitude: _currentLat,
+              longitude: _currentLng,
+              locationReady: _locationReady,
             ),
+          ),
+
+          // Restricted Area Controls
+          Positioned(
+            bottom: 24,
+            left: 16,
+            right: 16,
+            child: _RestrictedAreaControls(),
           ),
         ],
       ),
@@ -262,41 +226,15 @@ class _MapPlaceholder extends StatelessWidget {
   }
 }
 
-/// Grid Painter - Creates map-like grid pattern
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = const Color(0xFFB8D4E0).withOpacity(0.3)
-      ..strokeWidth = 1;
-
-    const spacing = 40.0;
-
-    // Vertical lines
-    for (double x = 0; x < size.width; x += spacing) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-
-    // Horizontal lines
-    for (double y = 0; y < size.height; y += spacing) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Location Info Overlay Card
 class _LocationInfoOverlay extends StatelessWidget {
   final double latitude;
   final double longitude;
-  final String? locationName;
+  final bool locationReady;
 
   const _LocationInfoOverlay({
     required this.latitude,
     required this.longitude,
-    this.locationName,
+    required this.locationReady,
   });
 
   @override
@@ -314,35 +252,60 @@ class _LocationInfoOverlay extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              const Icon(Icons.location_on, color: Color(0xFF3B82F6), size: 20),
-              const SizedBox(width: 8),
-              const Text(
-                'Current Location',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF111827),
+          Icon(
+            Icons.location_on,
+            color: locationReady
+                ? const Color(0xFF10B981)
+                : const Color(0xFFF59E0B),
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  locationReady ? 'Live Location' : 'Fetching location...',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827),
+                  ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  locationReady
+                      ? 'Lat: ${latitude.toStringAsFixed(5)},  Lng: ${longitude.toStringAsFixed(5)}'
+                      : 'Please wait',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF9CA3AF),
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // GPS update indicator
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: locationReady
+                  ? const Color(0xFF10B981).withOpacity(0.1)
+                  : const Color(0xFFF59E0B).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              locationReady ? '8s' : '...',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: locationReady
+                    ? const Color(0xFF10B981)
+                    : const Color(0xFFF59E0B),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            locationName ?? 'Antipolo, Calabarzon, PH',
-            style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Lat: ${latitude.toStringAsFixed(4)}, Lng: ${longitude.toStringAsFixed(4)}',
-            style: const TextStyle(
-              fontSize: 11,
-              color: Color(0xFF9CA3AF),
-              fontFamily: 'monospace',
             ),
           ),
         ],
@@ -351,7 +314,6 @@ class _LocationInfoOverlay extends StatelessWidget {
   }
 }
 
-/// Restricted Area Controls
 class _RestrictedAreaControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -390,7 +352,6 @@ class _RestrictedAreaControls extends StatelessWidget {
                   ),
                 ),
               ),
-              // Status Badge
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -471,134 +432,6 @@ class _RestrictedAreaControls extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Bottom Info Panel
-class _BottomInfoPanel extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
-      ),
-      child: Row(
-        children: [
-          _InfoItem(
-            icon: Icons.location_on,
-            label: 'Tracking',
-            value: 'Active',
-            color: const Color(0xFF10B981),
-          ),
-          const Spacer(),
-          _InfoItem(
-            icon: Icons.speed,
-            label: 'Speed',
-            value: '0 km/h',
-            color: const Color(0xFF3B82F6),
-          ),
-          const Spacer(),
-          _InfoItem(
-            icon: Icons.timer_outlined,
-            label: 'Trip Time',
-            value: '0:00',
-            color: const Color(0xFF6B7280),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _InfoItem({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: color, size: 20),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
-        ),
-      ],
-    );
-  }
-}
-
-/// Map Setup Instructions Dialog
-class _MapSetupDialog extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Setup OpenStreetMap'),
-      content: const SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'To enable live map with OpenStreetMap:',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            SizedBox(height: 12),
-            Text('1. Install packages:'),
-            SizedBox(height: 4),
-            SelectableText(
-              'flutter pub add flutter_map latlong2',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                backgroundColor: Color(0xFFF3F4F6),
-              ),
-            ),
-            SizedBox(height: 12),
-            Text('2. Replace _MapPlaceholder with:'),
-            SizedBox(height: 4),
-            Text(
-              'FlutterMap widget from flutter_map package',
-              style: TextStyle(fontSize: 13),
-            ),
-            SizedBox(height: 12),
-            Text('3. Add GPS permissions to:'),
-            SizedBox(height: 4),
-            Text(
-              '• Android: AndroidManifest.xml\n• iOS: Info.plist',
-              style: TextStyle(fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Got it'),
-        ),
-      ],
     );
   }
 }

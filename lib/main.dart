@@ -94,11 +94,12 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const AuthWrapper(),
+        home: const SplashScreen(),
         routes: {
+          '/auth': (context) => const AuthWrapper(),
           '/login': (context) => const LoginScreen(),
           '/signup': (context) => const SignupScreen(),
-          '/home': (context) => const MainNavigationScreen(), // ← Fixed!
+          '/home': (context) => const MainNavigationScreen(),
         },
       ),
     );

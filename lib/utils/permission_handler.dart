@@ -1,6 +1,7 @@
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 class AppPermissionHandler {
   /// Check if all required permissions are granted
@@ -54,8 +55,8 @@ class AppPermissionHandler {
       final allGranted = statuses.values.every((status) => status.isGranted);
 
       if (!allGranted) {
-        if (!context.mounted) return false; // ✅ FIX 1: Check mounted
-        _showPermissionDialog(
+        if (!context.mounted) return false;
+        await _showPermissionDialog(
           context,
           title: 'Bluetooth Permission Required',
           description:
@@ -107,17 +108,18 @@ class AppPermissionHandler {
 
   /// Check if device is Android 12 or higher
   static Future<bool> _isAndroid12OrHigher() async {
-    // This is a simplified check. In production, use device_info_plus package
-    return await Permission.bluetoothScan.status != PermissionStatus.restricted;
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
+    return androidInfo.version.sdkInt >= 31;
   }
 
   /// Show beautiful permission dialog
-  static void _showPermissionDialog(
+  static Future<void> _showPermissionDialog(
     BuildContext context, {
     required String title,
     required String description,
     required Future<bool> Function() onRetry,
-  }) {
+  }) async {
     AwesomeDialog(
       context: context,
       dialogType: DialogType.warning,

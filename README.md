@@ -9,41 +9,45 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 ## 📱 Project Overview
 
 ### **What It Does:**
-- 🔗 **Bluetooth Control:** Connects to motorcycle exhaust controller hardware
+- 🔗 **Bluetooth Control:** Connects to motorcycle exhaust controller hardware (ESP32 via BLE)
 - 📍 **GPS Automation:** Automatically closes exhaust when entering restricted areas
-- 🗺️ **Zone Management:** Add and manage noise-restricted zones
+- 🗺️ **Live Map:** Real OpenStreetMap with live GPS marker and restricted zone overlays
 - 📊 **Statistics:** Track trips, auto-closures, and usage patterns
 - 👤 **User Accounts:** Firebase authentication and cloud sync
 
 ### **Technology Stack:**
 - **Frontend:** Flutter 3.10+
 - **Backend:** Firebase (Auth, Firestore)
-- **Hardware:** Bluetooth Low Energy (BLE)
-- **Maps:** OpenStreetMap (planned)
+- **Hardware:** Bluetooth Low Energy (BLE) — ESP32
+- **Maps:** OpenStreetMap via `flutter_map`
 - **State Management:** Provider
 
 ---
 
-## 🎯 Current Status: 55% Complete
+## 🎯 Current Status: 85% Complete
 
 ### ✅ **Completed Features:**
 - [x] User authentication (login/signup)
 - [x] Professional UI with custom components
 - [x] 4-tab navigation system (Home, Map, Stats, Profile)
-- [x] Permission system (Bluetooth, GPS)
-- [x] Beautiful dialogs and animations
+- [x] Permission system (Bluetooth, GPS — Android 12+ compliant)
+- [x] Real BLE device scanning and connection
+- [x] Real OpenStreetMap with live tiles
+- [x] GPS tracking every 8 seconds
+- [x] Reverse geocoding (human-readable address)
+- [x] Dashboard + Map synced via ExhaustProvider
+- [x] Restricted area detection on every GPS tick
 - [x] Statistics dashboard
-- [x] Restricted area model with GPS detection
+- [x] Restricted area model with Haversine GPS detection
 
 ### 🔄 **In Progress:**
-- [ ] ReWatch logo integration (80% complete)
+- [ ] ReWatch logo integration (80% complete — asset pending)
 
-### ⏸️ **Planned:**
-- [ ] Real Bluetooth device scanning
-- [ ] Hardware connection and control
-- [ ] Live GPS tracking
-- [ ] OpenStreetMap integration
-- [ ] Automatic exhaust control logic
+### ⏸️ **Planned (Phase 7):**
+- [ ] ESP32 BLE command protocol definition
+- [ ] Send valve open/close commands via BLE
+- [ ] Automatic exhaust control on geofence entry/exit
+- [ ] Auto-closure notifications
 
 ---
 
@@ -55,6 +59,7 @@ Flutter SDK: >=3.10.8
 Dart SDK: >=3.0.0
 Android Studio / Xcode
 Firebase project configured
+Physical Android device (BLE + GPS required)
 ```
 
 ### **Installation:**
@@ -96,32 +101,41 @@ flutter run
 
 ## 📦 Dependencies
 
-### **Core Packages:**
+### **Core:**
 ```yaml
-firebase_core: ^4.4.0          # Firebase initialization
-firebase_auth: ^6.1.4          # User authentication
-cloud_firestore: ^6.1.2        # Database
-provider: ^6.1.5+1             # State management
+firebase_core: ^4.4.0
+firebase_auth: ^6.1.4
+cloud_firestore: ^6.1.2
+provider: ^6.1.5+1
+shared_preferences: ^2.5.4
 ```
 
 ### **Hardware Integration:**
 ```yaml
-flutter_blue_plus: ^2.1.0      # Bluetooth connectivity
+flutter_blue_plus: 1.31.15     # BLE scanning and connection (free version)
 geolocator: ^14.0.2            # GPS location
 permission_handler: ^12.0.1    # Permission management
+device_info_plus: ^10.1.0      # Android SDK version detection
+```
+
+### **Map & Location:**
+```yaml
+flutter_map: ^8.2.2            # OpenStreetMap rendering
+latlong2: ^0.9.1               # LatLng coordinate type
+geocoding: ^4.0.0              # Reverse geocoding (coords → address)
 ```
 
 ### **UI/UX:**
 ```yaml
-font_awesome_flutter: ^10.7.0  # Professional icons
-awesome_dialog: ^3.2.1         # Beautiful dialogs
-flutter_svg: ^2.0.10           # SVG support
-lottie: ^3.1.2                 # Smooth animations
+font_awesome_flutter: ^10.7.0
+awesome_dialog: ^3.2.1
+flutter_svg: ^2.0.10
+lottie: ^3.1.2
 ```
 
 ### **Development:**
 ```yaml
-flutter_launcher_icons: ^0.14.1  # App icon generation
+flutter_launcher_icons: ^0.14.1
 ```
 
 ---
@@ -129,90 +143,64 @@ flutter_launcher_icons: ^0.14.1  # App icon generation
 ## 🏗️ Project Structure
 ```
 lib/
-├── main.dart                    # App entry point
-├── models/                      # Data models
-│   └── restricted_area.dart     # GPS zone model
-├── providers/                   # State management
-│   ├── auth_provider.dart       # Authentication state
-│   ├── bluetooth_provider.dart  # Bluetooth state
-│   ├── exhaust_provider.dart    # Exhaust control state
-│   └── restricted_areas_provider.dart  # GPS zones state
-├── screens/                     # UI screens
-│   ├── splash_screen.dart       # Splash with permissions
-│   ├── login_screen.dart        # User login
-│   ├── signup_screen.dart       # User registration
-│   ├── main_navigation_screen.dart  # Bottom navigation
-│   ├── dashboard_screen.dart    # Home tab
-│   ├── map_screen.dart          # Map tab
-│   ├── stats_screen.dart        # Statistics tab
-│   └── profile_screen.dart      # Profile tab
-├── services/                    # Business logic
-│   ├── auth_service.dart        # Firebase auth
-│   └── firestore_service.dart   # Database operations
-├── utils/                       # Utilities
-│   ├── app_colors.dart          # Color system
-│   ├── app_text_styles.dart     # Typography
-│   └── permission_handler.dart  # Permission management
-└── widgets/                     # Reusable widgets
-    ├── custom_button.dart       # Button component
-    ├── custom_text_field.dart   # Input component
-    └── bluetooth_connection_modal.dart  # BT modal
+├── main.dart
+├── models/
+│   └── restricted_area.dart         # GPS zone model (Haversine)
+├── providers/
+│   ├── auth_provider.dart
+│   ├── bluetooth_provider.dart      # Real BLE scanning + connection
+│   ├── exhaust_provider.dart        # Exhaust state + live location
+│   └── restricted_areas_provider.dart
+├── screens/
+│   ├── splash_screen.dart           # Permissions on launch
+│   ├── login_screen.dart
+│   ├── signup_screen.dart
+│   ├── main_navigation_screen.dart  # 4-tab nav
+│   ├── dashboard_screen.dart        # Live BT status + location
+│   ├── map_screen.dart              # OSM map + GPS + geocoding
+│   ├── stats_screen.dart
+│   ├── profile_screen.dart
+│   └── manage_restricted_areas_screen.dart
+├── services/
+│   ├── auth_service.dart
+│   └── firestore_service.dart
+├── utils/
+│   ├── app_colors.dart
+│   ├── app_text_styles.dart
+│   └── permission_handler.dart
+└── widgets/
+    ├── custom_button.dart
+    ├── custom_text_field.dart
+    └── bluetooth_connection_modal.dart
 
-android/
-└── app/src/main/
-    └── AndroidManifest.xml      # Android permissions
+android/app/src/main/
+└── AndroidManifest.xml              # 7 permissions declared
 
-assets/
-└── images/
-    └── logo.png                 # App logo (add this)
-
-docs/
-├── CHANGELOG.md                 # Version history
-├── PROGRESS.md                  # Development progress
-└── INSTALLATION_GUIDE.md        # Setup instructions
+assets/images/
+└── logo.png                         # App logo (add this)
 ```
 
 ---
 
-## 🎨 Features Breakdown
+## 🗺️ Map Features
 
-### **1. Authentication System**
-- Email/password registration
-- Secure Firebase authentication
-- Session persistence
-- Error handling
+- **Real OSM Tiles** — live street map data, no API key needed
+- **Live GPS Marker** — motorcycle icon at your real position, updates every 8 seconds
+- **Restricted Zone Circles** — red overlays pulled from Firestore
+- **Center Button** — snaps map back to your current location
+- **Location Overlay** — shows live coords + green `8s` refresh badge
+- **Auto-center** — only on first GPS fix; user can pan freely after
 
-### **2. Dashboard (Home Tab)**
-- Bluetooth connection status
-- Manual exhaust control
-- Quick stats overview
-- Connection management
+---
 
-### **3. Map Tab**
-- Restricted area management
-- Add/edit/delete zones
-- GPS-based area detection
-- Visual zone display (planned)
+## 📍 GPS & Location
 
-### **4. Statistics Tab**
-- Total trips taken
-- Auto-closures performed
-- Time saved
-- Recent activity timeline
-- Weekly usage chart
-
-### **5. Profile Tab**
-- User account information
-- App settings
-- Logout functionality
-- About section
-
-### **6. Permission System**
-- Smart Bluetooth permission (Android 12+ support)
-- GPS location permission
-- Beautiful permission dialogs
-- Graceful error handling
-- Settings deep link
+- **Update Interval:** Every 8 seconds via `Timer.periodic`
+- **Accuracy:** `LocationAccuracy.high`
+- **Reverse Geocoding:** `geocoding` package — converts coords to readable address (e.g. `"Sumulong Highway, Antipolo, Calabarzon"`)
+- **Fallback:** Raw `lat, lng` string if geocoding fails
+- **Restricted Area Check:** Runs on every GPS tick using Haversine formula
+- **Dashboard Sync:** Address + restricted status pushed to `ExhaustProvider` — dashboard updates automatically
 
 ---
 
@@ -225,127 +213,85 @@ docs/
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 
 <!-- Bluetooth (Android 12+) -->
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+    android:usesPermissionFlags="neverForLocation" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
-<!-- Location (GPS Automation) -->
+<!-- Location (GPS) -->
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-<!-- Internet (Firebase) -->
+<!-- Internet (Firebase + OSM tiles) -->
 <uses-permission android:name="android.permission.INTERNET" />
-```
-
-### **iOS:**
-```xml
-<!-- Not yet configured - iOS support pending -->
 ```
 
 ---
 
 ## 🧪 Testing
 
-### **Manual Testing Completed:**
-- ✅ Login/signup flow
-- ✅ Navigation between tabs
-- ✅ Permission request flow
-- ✅ Splash screen animation
-- ✅ Dashboard UI
-- ✅ Stats screen display
+### **Verified on:** Infinix X6833B (Android 13)
 
-### **Pending Tests:**
-- ⏳ Bluetooth device scanning
-- ⏳ Hardware connection
-- ⏳ GPS location tracking
-- ⏳ Automatic exhaust control
-- ⏳ Background location
+### ✅ Passing:
+- Login/signup flow
+- Permission request flow (BT + GPS)
+- BLE device scanning
+- BLE device connection
+- Real OSM map loading
+- GPS marker at actual position
+- GPS updates every 8 seconds
+- Human-readable address on dashboard
+- Restricted area detection
 
----
-
-## 📚 Documentation
-
-### **Available Docs:**
-- [CHANGELOG.md](./CHANGELOG.md) - Version history and changes
-- [PROGRESS.md](./PROGRESS.md) - Development progress tracker
-- [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md) - Setup instructions (pending)
-
-### **API Documentation:**
-- Firebase Auth: https://firebase.google.com/docs/auth
-- Cloud Firestore: https://firebase.google.com/docs/firestore
-- Flutter Blue Plus: https://pub.dev/packages/flutter_blue_plus
-- Geolocator: https://pub.dev/packages/geolocator
+### ⏳ Pending:
+- Automatic valve control (Phase 7)
+- Background location
+- iOS support
 
 ---
 
 ## 🎯 Roadmap
 
-### **Phase 4: Bluetooth Integration** (Next - Feb 14-16)
-- Real device scanning
-- Pairing and connection
-- Send control commands
-- Status monitoring
-
-### **Phase 5: GPS Tracking** (Feb 16-18)
-- Real-time location tracking
-- Geofencing setup
-- Area entry/exit detection
-- Background location
-
-### **Phase 6: Map Integration** (Feb 18-20)
-- OpenStreetMap integration
-- Visual zone display
-- User location marker
-- Map controls
-
-### **Phase 7: Core Automation** (Feb 20-23)
-- Automatic valve control
-- Area-based switching
-- Notification system
-- History tracking
+| Phase | Feature | Status | Date |
+|-------|---------|--------|------|
+| 0 | Foundation | ✅ Done | Before Feb 11 |
+| 1 | UI/UX | 🔄 80% | Feb 11 |
+| 2 | Navigation | ✅ Done | Feb 11 |
+| 3 | Permissions | ✅ Done | Feb 11 |
+| 4 | Bluetooth | ✅ Done | Feb 17 |
+| 5 | GPS | ✅ Done | Feb 17 |
+| 6 | Map | ✅ Done | Feb 17 |
+| 7 | Automation | ⏸️ Next | Feb 18 |
 
 ---
 
-## 🤝 Contributing
+## 📚 Documentation
 
-This is a capstone project. Contributions are welcome for:
-- Bug fixes
-- UI improvements
-- Documentation
-- Testing
+- [CHANGELOG.md](./CHANGELOG.md) — Full version history
+- [PROJECT_PROGRESS.md](./PROJECT_PROGRESS.md) — Phase progress tracker
+
+### **Package Docs:**
+- [flutter_map](https://pub.dev/packages/flutter_map)
+- [geolocator](https://pub.dev/packages/geolocator)
+- [geocoding](https://pub.dev/packages/geocoding)
+- [flutter_blue_plus](https://pub.dev/packages/flutter_blue_plus)
+- [Firebase Auth](https://firebase.google.com/docs/auth)
+- [Cloud Firestore](https://firebase.google.com/docs/firestore)
 
 ---
 
 ## 📄 License
 
-This project is created for educational purposes as part of a capstone project.
+Created for educational purposes as part of a capstone project.
 
 ---
 
 ## 👨‍💻 Author
 
-**Development Team**  
+**Development Team**
 Capstone Project 2026
 
 ---
 
-## 🙏 Acknowledgments
-
-- Flutter team for excellent framework
-- Firebase for backend services
-- OpenStreetMap for mapping (planned)
-- Flutter community for packages
-
----
-
-## 📞 Support
-
-For questions or issues:
-1. Check [CHANGELOG.md](./CHANGELOG.md) for known issues
-2. Review [PROGRESS.md](./PROGRESS.md) for feature status
-3. Open an issue on GitHub
-
----
-
-**Last Updated:** February 11, 2026  
-**Version:** 0.3.0  
-**Status:** Active Development
+**Last Updated:** February 17, 2026
+**Version:** 0.6.0
+**Status:** Active Development — Phase 7 Next
