@@ -110,6 +110,7 @@ class AppPermissionHandler {
   static Future<bool> _isAndroid12OrHigher() async {
     final deviceInfo = DeviceInfoPlugin();
     final androidInfo = await deviceInfo.androidInfo;
+    print('>>> Android SDK: ${androidInfo.version.sdkInt}');
     return androidInfo.version.sdkInt >= 31;
   }
 

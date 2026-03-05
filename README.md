@@ -294,4 +294,6 @@ Capstone Project 2026
 
 **Last Updated:** February 17, 2026
 **Version:** 0.6.0
-**Status:** Active Development — Phase 7 Next
+**Status:** Active Development — Phase 7 Next  kay magutom na 
+
+
