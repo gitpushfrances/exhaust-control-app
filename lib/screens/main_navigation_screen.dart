@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/restricted_areas_provider.dart';
 import 'dashboard_screen.dart';
 import 'map_screen.dart';
-import 'stats_screen.dart';
 import 'profile_screen.dart';
 
-/// Main Navigation Screen - Bottom navigation bar wrapper
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -15,10 +16,22 @@ class MainNavigationScreen extends StatefulWidget {
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = context.read<AuthProvider>().user;
+      if (user != null) {
+        context.read<RestrictedAreasProvider>().initialize(
+          user.email ?? user.uid,
+        );
+      }
+    });
+  }
+
   final List<Widget> _screens = const [
     DashboardScreen(),
     MapScreen(),
-    StatsScreen(),
     ProfileScreen(),
   ];
 
@@ -58,18 +71,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   onTap: () => setState(() => _currentIndex = 1),
                 ),
                 _NavBarItem(
-                  icon: Icons.bar_chart_outlined,
-                  activeIcon: Icons.bar_chart,
-                  label: 'Stats',
-                  isActive: _currentIndex == 2,
-                  onTap: () => setState(() => _currentIndex = 2),
-                ),
-                _NavBarItem(
                   icon: Icons.person_outline,
                   activeIcon: Icons.person,
                   label: 'Profile',
-                  isActive: _currentIndex == 3,
-                  onTap: () => setState(() => _currentIndex = 3),
+                  isActive: _currentIndex == 2,
+                  onTap: () => setState(() => _currentIndex = 2),
                 ),
               ],
             ),
@@ -80,7 +86,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-/// Navigation Bar Item
 class _NavBarItem extends StatelessWidget {
   final IconData icon;
   final IconData activeIcon;
@@ -112,8 +117,8 @@ class _NavBarItem extends StatelessWidget {
                 Icon(
                   isActive ? activeIcon : icon,
                   color: isActive
-                      ? const Color(0xFF3B82F6) // Primary Blue
-                      : const Color(0xFF9CA3AF), // Gray 400
+                      ? const Color(0xFF3B82F6)
+                      : const Color(0xFF9CA3AF),
                   size: 24,
                 ),
                 const SizedBox(height: 4),

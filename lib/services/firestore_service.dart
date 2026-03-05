@@ -23,7 +23,6 @@ class FirestoreService {
       final snapshot = await _firestore
           .collection(_collection)
           .where('createdBy', isEqualTo: userEmail)
-          .where('isActive', isEqualTo: true)
           .get();
 
       return snapshot.docs
@@ -77,7 +76,6 @@ class FirestoreService {
     return _firestore
         .collection(_collection)
         .where('createdBy', isEqualTo: userEmail)
-        .where('isActive', isEqualTo: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

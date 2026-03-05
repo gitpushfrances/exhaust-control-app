@@ -20,85 +20,100 @@ class _MapScreenState extends State<MapScreen> {
   double _currentLat = 14.5995;
   double _currentLng = 121.0084;
   bool _locationReady = false;
+  String _displayAddress = '';
+
   late final MapController _mapController;
-  Timer? _locationTimer;
+  StreamSubscription<Position>? _positionStream;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
-    _fetchLocation();
-    // Update every 8 seconds
-    _locationTimer = Timer.periodic(
-      const Duration(seconds: 8),
-      (_) => _fetchLocation(),
-    );
+    _startLocationStream();
   }
 
   @override
   void dispose() {
-    _locationTimer?.cancel();
+    _positionStream?.cancel();
     super.dispose();
   }
 
-  Future<void> _fetchLocation() async {
+  void _startLocationStream() {
+    final locationSettings = AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      intervalDuration: const Duration(seconds: 8),
+      distanceFilter: 5,
+      foregroundNotificationConfig: const ForegroundNotificationConfig(
+        notificationText: 'Exhaust Controller is monitoring your location',
+        notificationTitle: 'Location Active',
+        enableWakeLock: true,
+      ),
+    );
+
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen(_onPositionUpdate, onError: (e) {});
+  }
+
+  Future<void> _onPositionUpdate(Position position) async {
+    if (!mounted) return;
+
+    String address = '';
     try {
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      if (!mounted) return;
-
-      // Reverse geocode to human-readable address
-      String address =
-          '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
-      try {
-        final placemarks = await placemarkFromCoordinates(
-          position.latitude,
-          position.longitude,
-        );
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          final parts = [
-            p.street,
-            p.subLocality,
-            p.locality,
-            p.administrativeArea,
-          ].where((s) => s != null && s.isNotEmpty).toList();
-          if (parts.isNotEmpty) {
-            address = parts.join(', ');
-          }
-        }
-      } catch (_) {
-        // Fallback to raw coords if geocoding fails
-      }
-
-      final wasReady = _locationReady;
-      setState(() {
-        _currentLat = position.latitude;
-        _currentLng = position.longitude;
-        _locationReady = true;
-      });
-
-      // Update exhaust provider with real coords + address
-      final exhaustProvider = context.read<ExhaustProvider>();
-      final areasProvider = context.read<RestrictedAreasProvider>();
-      final isRestricted = areasProvider.isPointInRestrictedArea(
+      final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
-      );
-      exhaustProvider.updateLocation(
-        lat: position.latitude,
-        lng: position.longitude,
-        locationName: address,
-        isRestricted: isRestricted,
-      );
+      ).timeout(const Duration(seconds: 6));
 
-      // Auto-center map on first fix only
-      if (!wasReady) {
-        _mapController.move(LatLng(_currentLat, _currentLng), 15.0);
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        final street = p.thoroughfare ?? p.street ?? '';
+        final barangay = p.subLocality ?? '';
+        final municipality = p.locality ?? '';
+        final province = p.administrativeArea ?? '';
+        final region = p.subAdministrativeArea ?? '';
+
+        final parts = [
+          street,
+          barangay,
+          municipality,
+          province,
+          region,
+        ].where((s) => s.isNotEmpty).toList();
+        address = parts.isNotEmpty ? parts.join(', ') : '';
       }
-    } catch (e) {
-      // Keep last known position on error
+    } catch (_) {}
+
+    if (address.isEmpty) {
+      address =
+          '${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}';
+    }
+
+    final wasReady = _locationReady;
+
+    if (!mounted) return;
+    setState(() {
+      _currentLat = position.latitude;
+      _currentLng = position.longitude;
+      _locationReady = true;
+      _displayAddress = address;
+    });
+
+    final exhaustProvider = context.read<ExhaustProvider>();
+    final areasProvider = context.read<RestrictedAreasProvider>();
+    final isRestricted = areasProvider.isPointInRestrictedArea(
+      position.latitude,
+      position.longitude,
+    );
+    exhaustProvider.updateLocation(
+      lat: position.latitude,
+      lng: position.longitude,
+      locationName: address,
+      isRestricted: isRestricted,
+    );
+
+    if (!wasReady) {
+      _mapController.move(LatLng(position.latitude, position.longitude), 15.0);
     }
   }
 
@@ -163,7 +178,7 @@ class _MapScreenState extends State<MapScreen> {
                   return CircleMarker(
                     point: LatLng(area.latitude, area.longitude),
                     radius: area.radius,
-                    color: const Color(0xFFEF4444).withOpacity(0.2),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.2),
                     borderColor: const Color(0xFFEF4444),
                     borderStrokeWidth: 2,
                     useRadiusInMeter: true,
@@ -183,7 +198,9 @@ class _MapScreenState extends State<MapScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF3B82F6).withOpacity(0.4),
+                            color: const Color(
+                              0xFF3B82F6,
+                            ).withValues(alpha: 0.4),
                             blurRadius: 12,
                             spreadRadius: 3,
                           ),
@@ -200,25 +217,15 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ],
           ),
-
-          // Location Info Overlay
           Positioned(
             top: 16,
             left: 16,
             right: 16,
             child: _LocationInfoOverlay(
-              latitude: _currentLat,
-              longitude: _currentLng,
+              address: _displayAddress,
               locationReady: _locationReady,
+              isRestricted: exhaustProvider.isInRestrictedArea,
             ),
-          ),
-
-          // Restricted Area Controls
-          Positioned(
-            bottom: 24,
-            left: 16,
-            right: 16,
-            child: _RestrictedAreaControls(),
           ),
         ],
       ),
@@ -227,39 +234,43 @@ class _MapScreenState extends State<MapScreen> {
 }
 
 class _LocationInfoOverlay extends StatelessWidget {
-  final double latitude;
-  final double longitude;
+  final String address;
   final bool locationReady;
+  final bool isRestricted;
 
   const _LocationInfoOverlay({
-    required this.latitude,
-    required this.longitude,
+    required this.address,
     required this.locationReady,
+    required this.isRestricted,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.location_on,
-            color: locationReady
-                ? const Color(0xFF10B981)
-                : const Color(0xFFF59E0B),
-            size: 20,
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              Icons.location_on,
+              color: locationReady
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFFF59E0B),
+              size: 20,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -269,166 +280,55 @@ class _LocationInfoOverlay extends StatelessWidget {
                 Text(
                   locationReady ? 'Live Location' : 'Fetching location...',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827),
+                    color: Color(0xFF6B7280),
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  locationReady
-                      ? 'Lat: ${latitude.toStringAsFixed(5)},  Lng: ${longitude.toStringAsFixed(5)}'
+                  locationReady && address.isNotEmpty
+                      ? address
+                      : locationReady
+                      ? 'Resolving address...'
                       : 'Please wait',
                   style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF9CA3AF),
-                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    color: Color(0xFF111827),
+                    fontWeight: FontWeight.w500,
+                    height: 1.4,
                   ),
                 ),
               ],
             ),
           ),
-          // GPS update indicator
+          const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: locationReady
-                  ? const Color(0xFF10B981).withOpacity(0.1)
-                  : const Color(0xFFF59E0B).withOpacity(0.1),
+              color: !locationReady
+                  ? const Color(0xFFF59E0B).withValues(alpha: 0.1)
+                  : isRestricted
+                  ? const Color(0xFFEF4444).withValues(alpha: 0.1)
+                  : const Color(0xFF10B981).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              locationReady ? '8s' : '...',
+              !locationReady
+                  ? '...'
+                  : isRestricted
+                  ? 'RESTRICTED'
+                  : 'CLEAR',
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: locationReady
-                    ? const Color(0xFF10B981)
-                    : const Color(0xFFF59E0B),
+                color: !locationReady
+                    ? const Color(0xFFF59E0B)
+                    : isRestricted
+                    ? const Color(0xFFEF4444)
+                    : const Color(0xFF10B981),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RestrictedAreaControls extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final exhaustProvider = context.watch<ExhaustProvider>();
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.location_searching,
-                color: Color(0xFF3B82F6),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Restricted Area Test',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: exhaustProvider.isInRestrictedArea
-                      ? const Color(0xFFEF4444).withOpacity(0.1)
-                      : const Color(0xFF10B981).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  exhaustProvider.isInRestrictedArea ? 'INSIDE' : 'OUTSIDE',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: exhaustProvider.isInRestrictedArea
-                        ? const Color(0xFFEF4444)
-                        : const Color(0xFF10B981),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    exhaustProvider.simulateRestrictedArea();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Simulated: Entered restricted area'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.where_to_vote, size: 18),
-                  label: const Text('Enter Zone'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEF4444),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    exhaustProvider.simulateLeaveRestrictedArea();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Simulated: Left restricted area'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.exit_to_app, size: 18),
-                  label: const Text('Leave Zone'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-            ],
           ),
         ],
       ),

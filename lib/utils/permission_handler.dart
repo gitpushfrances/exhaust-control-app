@@ -8,51 +8,59 @@ class AppPermissionHandler {
   static Future<bool> checkAllPermissions() async {
     final bluetoothStatus = await _checkBluetoothPermissions();
     final locationStatus = await Permission.locationWhenInUse.status;
+    final bgLocationStatus = await Permission.locationAlways.status;
 
-    return bluetoothStatus && locationStatus.isGranted;
+    return bluetoothStatus &&
+        locationStatus.isGranted &&
+        bgLocationStatus.isGranted;
   }
 
-  /// Request all required permissions
+  /// Request all required permissions in correct order
   static Future<bool> requestAllPermissions(BuildContext context) async {
-    // Request Bluetooth permissions
+    // 1. Bluetooth
     final bluetoothGranted = await _requestBluetoothPermissions(context);
     if (!bluetoothGranted) {
-      if (!context.mounted) return false; // ✅ FIX 1: Check mounted
+      if (!context.mounted) return false;
       return false;
     }
 
-    // Request Location permission
+    // 2. Foreground location (must come before background)
     final locationGranted = await _requestLocationPermission(context);
     if (!locationGranted) {
-      if (!context.mounted) return false; // ✅ FIX 1: Check mounted
+      if (!context.mounted) return false;
       return false;
     }
 
+    // 3. Background location (only ask after foreground is granted)
+    if (!context.mounted) return false;
+    await _requestBackgroundLocationPermission(context);
+
+    // Background location is non-blocking — app works without it,
+    // but GPS will stop when app is minimized.
     return true;
   }
 
   /// Check Bluetooth permissions (Android 12+)
   static Future<bool> _checkBluetoothPermissions() async {
     if (await _isAndroid12OrHigher()) {
-      final bluetoothScan = await Permission.bluetoothScan.status;
-      final bluetoothConnect = await Permission.bluetoothConnect.status;
-      return bluetoothScan.isGranted && bluetoothConnect.isGranted;
+      final scan = await Permission.bluetoothScan.status;
+      final connect = await Permission.bluetoothConnect.status;
+      return scan.isGranted && connect.isGranted;
     } else {
-      final bluetooth = await Permission.bluetooth.status;
-      return bluetooth.isGranted;
+      final bt = await Permission.bluetooth.status;
+      return bt.isGranted;
     }
   }
 
   /// Request Bluetooth permissions
   static Future<bool> _requestBluetoothPermissions(BuildContext context) async {
     if (await _isAndroid12OrHigher()) {
-      // Android 12+ requires BLUETOOTH_SCAN and BLUETOOTH_CONNECT
-      Map<Permission, PermissionStatus> statuses = await [
+      final statuses = await [
         Permission.bluetoothScan,
         Permission.bluetoothConnect,
       ].request();
 
-      final allGranted = statuses.values.every((status) => status.isGranted);
+      final allGranted = statuses.values.every((s) => s.isGranted);
 
       if (!allGranted) {
         if (!context.mounted) return false;
@@ -60,68 +68,95 @@ class AppPermissionHandler {
           context,
           title: 'Bluetooth Permission Required',
           description:
-              'This app needs Bluetooth access to connect to your motorcycle\'s exhaust controller.',
+              'This app needs Bluetooth to connect to your exhaust controller.',
           onRetry: () => _requestBluetoothPermissions(context),
         );
         return false;
       }
-
-      return allGranted;
+      return true;
     } else {
-      // Android 11 and below
       final status = await Permission.bluetooth.request();
-
       if (!status.isGranted) {
-        if (!context.mounted) return false; // ✅ FIX 1: Check mounted
-        _showPermissionDialog(
+        if (!context.mounted) return false;
+        await _showPermissionDialog(
           context,
           title: 'Bluetooth Permission Required',
           description:
-              'This app needs Bluetooth access to connect to your motorcycle\'s exhaust controller.',
+              'This app needs Bluetooth to connect to your exhaust controller.',
           onRetry: () => _requestBluetoothPermissions(context),
         );
         return false;
       }
-
-      return status.isGranted;
+      return true;
     }
   }
 
-  /// Request Location permission
+  /// Request foreground location
   static Future<bool> _requestLocationPermission(BuildContext context) async {
     final status = await Permission.locationWhenInUse.request();
-
     if (!status.isGranted) {
-      if (!context.mounted) return false; // ✅ FIX 1: Check mounted
-      _showPermissionDialog(
+      if (!context.mounted) return false;
+      await _showPermissionDialog(
         context,
         title: 'Location Permission Required',
         description:
-            'This app needs location access to automatically close the exhaust in restricted areas.',
+            'This app needs location access to detect restricted areas and auto-close the exhaust.',
         onRetry: () => _requestLocationPermission(context),
       );
       return false;
     }
+    return true;
+  }
 
-    return status.isGranted;
+  /// Request background location — shown AFTER foreground location is granted.
+  /// On Android 10+, the system shows its own rationale dialog.
+  /// On Android 11+, this opens app settings directly.
+  static Future<void> _requestBackgroundLocationPermission(
+    BuildContext context,
+  ) async {
+    final current = await Permission.locationAlways.status;
+    if (current.isGranted) return;
+
+    if (!context.mounted) return;
+
+    // Show our own explanation before the system prompt
+    await AwesomeDialog(
+      context: context,
+      dialogType: DialogType.info,
+      animType: AnimType.scale,
+      title: 'Background Location',
+      desc:
+          'Allow location access "All the time" so the exhaust auto-closes even when the app is minimized.',
+      btnOkText: 'Continue',
+      btnCancelText: 'Skip',
+      btnOkOnPress: () async {
+        final status = await Permission.locationAlways.request();
+        // On Android 11+, this opens Settings — user must manually allow.
+        // On Android 10, system dialog appears inline.
+        if (!status.isGranted && context.mounted) {
+          // Silently continue — foreground location still works
+        }
+      },
+      btnCancelOnPress: () {
+        // GPS works in foreground only — acceptable degraded mode
+      },
+    ).show();
   }
 
   /// Check if device is Android 12 or higher
   static Future<bool> _isAndroid12OrHigher() async {
-    final deviceInfo = DeviceInfoPlugin();
-    final androidInfo = await deviceInfo.androidInfo;
-    print('>>> Android SDK: ${androidInfo.version.sdkInt}');
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
     return androidInfo.version.sdkInt >= 31;
   }
 
-  /// Show beautiful permission dialog
+  /// Generic permission rationale dialog
   static Future<void> _showPermissionDialog(
     BuildContext context, {
     required String title,
     required String description,
     required Future<bool> Function() onRetry,
   }) async {
-    AwesomeDialog(
+    await AwesomeDialog(
       context: context,
       dialogType: DialogType.warning,
       animType: AnimType.scale,
@@ -132,17 +167,14 @@ class AppPermissionHandler {
       btnOkOnPress: () async {
         await onRetry();
       },
-      btnCancelOnPress: () {
-        // User skipped - app will have limited functionality
-      },
+      btnCancelOnPress: () {},
     ).show();
   }
 
-  /// Open app settings if permission is permanently denied
+  /// Open app settings (for permanently denied permissions)
   static Future<void> openSettings(BuildContext context) async {
-    if (!context.mounted) return; // ✅ FIX 1: Check mounted
-
-    AwesomeDialog(
+    if (!context.mounted) return;
+    await AwesomeDialog(
       context: context,
       dialogType: DialogType.info,
       animType: AnimType.scale,
@@ -151,7 +183,7 @@ class AppPermissionHandler {
       btnOkText: 'Open Settings',
       btnCancelText: 'Cancel',
       btnOkOnPress: () async {
-        await openAppSettings(); // ✅ FIX 2: No parameter needed
+        await openAppSettings();
       },
       btnCancelOnPress: () {},
     ).show();
