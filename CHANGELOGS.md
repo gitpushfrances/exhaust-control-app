@@ -4,6 +4,115 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.6.1] - Phase 6 Patches & Background GPS
+
+**Status:** ✅ COMPLETED
+**Date Completed:** March 5, 2026
+
+### 🎯 What This Patch Achieved:
+Removed Stats tab, rewrote restricted area creation with map-tap UI, fixed GPS to survive app backgrounding, fixed Firestore permission denial, fixed provider initialization bug that prevented areas from loading, and cleaned up animation render storm.
+
+---
+
+### ✅ Changes & Fixes
+
+#### 1. Stats Tab Removed
+- **File Modified:** `lib/screens/main_navigation_screen.dart`
+- 4 tabs → 3 tabs: Home, Map, Profile
+- `StatsScreen` import removed, indexes shifted (Profile: 3 → 2)
+
+#### 2. Background GPS — Timer → Stream
+- **File Modified:** `lib/screens/map_screen.dart`
+- **Replaced:** `Timer.periodic` (dies when app backgrounds) with `Geolocator.getPositionStream()`
+- Added `ForegroundNotificationConfig` — shows persistent "Location Active" notification required by Android to keep process alive
+- Added `AndroidManifest.xml` permissions: `ACCESS_BACKGROUND_LOCATION`, `WAKE_LOCK`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_LOCATION`
+- Registered `GeolocatorService` with `foregroundServiceType="location"`
+- **File Modified:** `lib/utils/permission_handler.dart` — added background location request as step 3, strictly after foreground location granted
+
+#### 3. Add Restricted Area — Full Rewrite (Map-Tap)
+- **File Modified:** `lib/screens/add_restricted_area_screen.dart`
+- **Removed:** Manual lat/lng/radius text fields
+- **Added:** Tap map → red pin drops instantly → red circle preview renders → address auto-resolves in background
+- Geocoding runs async with 8s timeout, falls back to raw coords on failure
+- Name field auto-fills from barangay + municipality
+- Radius picker: 50/100/200/300/500m buttons instead of text input
+- On open, fetches real GPS and centers map there instead of hardcoded Manila coords
+- `RestrictedArea` constructor corrected: `createdBy` + `createdAt` fields, removed wrong `userEmail` field
+- Save button disabled until map point is tapped
+
+#### 4. Address Format Upgrade
+- **Files Modified:** `map_screen.dart`, `add_restricted_area_screen.dart`
+- **Before:** Raw lat/lng coordinates displayed
+- **After:** Street → Barangay → Municipality → Province → Region
+- Example: `"Maharlika Highway, Brgy. Maybocog, Guiuan, Eastern Samar, Eastern Visayas"`
+
+#### 5. Animation Render Storm — Fixed
+- **Root cause:** `AnimationController` + `_mapController.move()` called on every animation tick → GPU frame overflow → device killed
+- **Fix:** Removed `AnimationController`, `_latAnim`, `_lngAnim`, `SingleTickerProviderStateMixin` entirely from both `map_screen.dart` and `add_restricted_area_screen.dart`
+- Replaced with direct `_mapController.move()` call — stable, no render storm
+
+#### 6. Firestore — Database Created + Rules Fixed
+- Created Firestore database (Standard edition, `asia-southeast1`, production mode)
+- **Initial rules too strict** — only allowed `users/{userId}` path, blocked `restricted_areas` writes
+- **Fixed rules:**
+```
+allow read, write: if request.auth != null;
+```
+- All authenticated users can read/write — appropriate for capstone scope
+
+#### 7. Firestore — `isActive` Filter Bug Fixed
+- **File Modified:** `lib/services/firestore_service.dart`
+- **Bug:** `getRestrictedAreas()` and `streamRestrictedAreas()` filtered `.where('isActive', isEqualTo: true)` but saved documents never include `isActive` field → query returned empty list
+- **Fix:** Removed `isActive` filter from both methods
+
+#### 8. Provider Initialization Bug Fixed
+- **File Modified:** `lib/screens/main_navigation_screen.dart`
+- **Bug:** `RestrictedAreasProvider.initialize()` was never called — `_userEmail` stayed `null` so `loadRestrictedAreas()` returned immediately on every call
+- **Fix:** Added `initState` with `addPostFrameCallback` to call `initialize()` with logged-in user's email after first frame
+- Added imports: `provider`, `AuthProvider`, `RestrictedAreasProvider`
+
+---
+
+### 📦 AndroidManifest.xml Additions
+```xml
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<uses-permission android:name="android.permission.WAKE_LOCK" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+```
+Plus `GeolocatorService` service declaration with `foregroundServiceType="location"`.
+
+---
+
+### 🐛 Bugs Fixed (7 total)
+
+1. ✅ **Background GPS dies** — Timer → getPositionStream + foreground service
+2. ✅ **Animation render storm** — AnimationController removed entirely
+3. ✅ **Firestore PERMISSION_DENIED** — Security rules too restrictive
+4. ✅ **Areas never load** — `isActive` filter removed from Firestore query
+5. ✅ **Provider never initialized** — `initialize()` added to `MainNavigationScreen.initState`
+6. ✅ **Add area opens at wrong location** — fetches real GPS on init
+7. ✅ **Add area hangs on tap** — geocoding moved to background async, pin drops instantly
+
+---
+
+### 📊 Testing Results
+- Map-tap area creation → pin drops instantly ✅
+- Address resolves in background ✅
+- Area saves to Firestore ✅
+- Red circle appears on map after save ✅
+- Background GPS notification shows ✅
+- 3-tab navigation working ✅
+- Verified on Infinix X6833B (Android 13) ✅
+
+---
+
+### 🎯 Impact on Project Progress
+- **Overall Project:** 85% → **90%** (+5%)
+- **Remaining:** Phase 7 (BLE automation) — blocked on ESP32 UUIDs from hardware team
+
+---
+
 ## [0.6.0] - Phase 5 & 6: GPS, Map Integration & Geocoding ⭐ NEW!
 
 **Status:** ✅ COMPLETED
@@ -28,28 +137,6 @@ Replaced the static placeholder map with a fully functional OpenStreetMap integr
   - ✅ Restricted area circles drawn on map as red overlays
   - ✅ Motorcycle marker at user's real GPS position
 
-**Before (Placeholder):**
-```dart
-CustomPaint(size: Size.infinite, painter: _GridPainter())
-// Fake grid with hardcoded Antipolo coords
-```
-
-**After (Real OSM):**
-```dart
-FlutterMap(
-  mapController: _mapController,
-  options: MapOptions(
-    initialCenter: LatLng(_currentLat, _currentLng),
-    initialZoom: 15.0,
-  ),
-  children: [
-    TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
-    CircleLayer(circles: areasProvider.areas.map(...).toList()),
-    MarkerLayer(markers: [...]),
-  ],
-)
-```
-
 #### 2. Real-Time GPS Tracking (8-Second Interval)
 - **File Modified:** `lib/screens/map_screen.dart`
 - **Features:**
@@ -60,144 +147,31 @@ FlutterMap(
   - ✅ Marker moves to real position on every update
   - ✅ Graceful error handling — keeps last known position on failure
 
-**GPS Timer Implementation:**
-```dart
-_locationTimer = Timer.periodic(
-  const Duration(seconds: 8),
-  (_) => _fetchLocation(),
-);
-
-// Auto-center on first fix only
-if (!wasReady) {
-  _mapController.move(LatLng(_currentLat, _currentLng), 15.0);
-}
-```
-
 #### 3. Reverse Geocoding — Human-Readable Address
-- **File Modified:** `lib/screens/map_screen.dart`
 - **Package Added:** `geocoding: ^4.0.0`
-- **Features:**
-  - ✅ `placemarkFromCoordinates()` converts GPS coords to address
-  - ✅ Address built from: street + subLocality + locality + administrativeArea
-  - ✅ Falls back to raw `lat, lng` string if geocoding fails
-  - ✅ Address pushed to `ExhaustProvider` via `updateLocation()`
-  - ✅ Dashboard location card shows human-readable address automatically
-
-**Geocoding Implementation:**
-```dart
-final placemarks = await placemarkFromCoordinates(lat, lng);
-final p = placemarks.first;
-final parts = [p.street, p.subLocality, p.locality, p.administrativeArea]
-    .where((s) => s != null && s.isNotEmpty).toList();
-address = parts.join(', ');
-// e.g. "Sumulong Highway, Antipolo, Calabarzon"
-```
+- ✅ `placemarkFromCoordinates()` converts GPS coords to address
+- ✅ Falls back to raw `lat, lng` string if geocoding fails
+- ✅ Address pushed to `ExhaustProvider` via `updateLocation()`
 
 #### 4. Live Location Sync to Dashboard
-- **File Modified:** `lib/screens/map_screen.dart`
-- **Features:**
-  - ✅ Every GPS update calls `exhaustProvider.updateLocation()`
-  - ✅ Dashboard `_LocationInfoCard` reads from `ExhaustProvider` — no extra code needed
-  - ✅ Restricted area check runs on every GPS update automatically
-  - ✅ `isInRestrictedArea` badge on dashboard updates in real time
-
-#### 5. Map Overlay UI Improvements
-- **File Modified:** `lib/screens/map_screen.dart`
-- **Features:**
-  - ✅ Location overlay shows `"Fetching location..."` with amber indicator until first fix
-  - ✅ After fix: shows raw coords + green `"8s"` refresh badge
-  - ✅ Removed bottom info panel (Tracking/Speed/Trip Time) — not needed
-  - ✅ Removed `_MapPlaceholder`, `_GridPainter`, `_MapSetupDialog` dead classes
+- ✅ Every GPS update calls `exhaustProvider.updateLocation()`
+- ✅ `isInRestrictedArea` badge on dashboard updates in real time
 
 ---
 
 ### 📦 Packages Added
-
 ```yaml
-flutter_map: ^8.2.2       # OpenStreetMap tile rendering + markers + circles
-latlong2: ^0.9.1          # LatLng coordinate type for flutter_map
-geocoding: ^4.0.0         # Reverse geocoding (coords → human address)
+flutter_map: ^8.2.2
+latlong2: ^0.9.1
+geocoding: ^4.0.0
 ```
-
-**Install commands used:**
-```bash
-flutter pub add flutter_map latlong2
-flutter pub add geocoding
-flutter pub get
-```
-
----
-
-### 📦 Files Modified Summary
-
-```
-lib/
-└── screens/
-    └── map_screen.dart    🔄 Full rewrite — real OSM, GPS, geocoding, live sync
-```
-
----
-
-### 🐛 Issues Resolved
-
-1. ✅ **Hardcoded Antipolo coords** — replaced with real `Geolocator.getCurrentPosition()`
-2. ✅ **Static marker** — now moves with user every 8 seconds
-3. ✅ **Map auto-centering on every update** — fixed to only center on first fix
-4. ✅ **Dashboard showing `"Location unavailable"`** — now shows real geocoded address
-5. ✅ **Dead placeholder classes** — `_MapPlaceholder`, `_GridPainter`, `_MapSetupDialog` removed
-
----
-
-### 📊 Testing Results
-
-#### ✅ Verified Working on Infinix X6833B (Android 13):
-- Map tab opens → Real OSM tiles load ✅
-- Motorcycle marker appears at actual GPS position ✅
-- Map auto-centers on first fix ✅
-- User can pan/zoom freely after first fix ✅
-- Marker updates every 8 seconds ✅
-- Center button snaps back to user location ✅
-- Red circles show restricted areas from Firestore ✅
-- Dashboard location card shows human-readable address ✅
-- Address updates every 8 seconds ✅
-- Restricted area badge on dashboard updates in real time ✅
 
 ---
 
 ### 🎯 Impact on Project Progress
-
-**Progress Update:**
 - **Phase 5 (GPS):** 0% → **100%** ✅
 - **Phase 6 (Map):** 0% → **100%** ✅
 - **Overall Project:** 70% → **85%** (+15%)
-- **Presentation Score:** 70 → **85/100**
-
-**What's Now Production-Ready:**
-- ✅ Real OpenStreetMap with live tiles
-- ✅ GPS tracking every 8 seconds
-- ✅ Human-readable address via reverse geocoding
-- ✅ Dashboard + Map fully in sync via ExhaustProvider
-- ✅ Restricted area detection on every GPS update
-
-**What's Next (Phase 7):**
-- Automatic exhaust valve control on geofence entry/exit
-- ESP32 BLE command protocol definition
-- Send open/close commands over BLE to hardware
-
----
-
-### 📋 Developer Notes
-
-#### Package Decisions:
-- `flutter_map 8.2.2` — upgraded from 7.0.2 during install, API compatible
-- `geocoding 4.0.0` — free, no API key needed, uses device's built-in geocoder
-- Geocoding requires internet on Android for first resolution; falls back to raw coords offline
-
-#### Remaining Tech Debt:
-- Debug `print('>>> ...')` still in `splash_screen.dart` and `permission_handler.dart`
-- BLE scan not filtered to ESP32 only
-- ESP32 BLE UUIDs not yet defined (needed for Phase 7)
-- Background location not implemented (app must be open for tracking)
 
 ---
 
@@ -207,7 +181,7 @@ lib/
 **Date Completed:** February 17, 2026
 
 ### 🎯 What This Phase Achieved:
-Replaced the entire mock Bluetooth implementation with real BLE scanning and connection using flutter_blue_plus. Fixed 6 critical bugs discovered during physical device testing including the splash screen never being shown, the connect button being non-functional, incorrect Android version detection, and scan triggering multiple times. App now scans for and connects to real physical BLE devices on Infinix X6833B (Android 13).
+Replaced the entire mock Bluetooth implementation with real BLE scanning and connection using flutter_blue_plus. Fixed 6 critical bugs discovered during physical device testing including the splash screen never being shown, the connect button being non-functional, incorrect Android version detection, and scan triggering multiple times.
 
 ---
 
@@ -215,168 +189,37 @@ Replaced the entire mock Bluetooth implementation with real BLE scanning and con
 
 #### 1. Real BLE Device Scanning
 - **File Modified:** `lib/providers/bluetooth_provider.dart`
-- **Features:**
-  - ✅ Full rewrite — all mock/simulated code removed
-  - ✅ Real BLE scanning via `FlutterBluePlus.startScan()` with 5s timeout
-  - ✅ System bonded devices via `FlutterBluePlus.connectedDevices`
-  - ✅ RSSI signal strength converted to 0-100% scale
-  - ✅ Real device name from `platformName` and `advertisementData.advName`
-  - ✅ Auto-disconnect detection via `connectionState` stream
-  - ✅ `stopScan()` called before every `startScan()` to prevent duplicates
-
-**Before (Mock):**
-```dart
-await Future.delayed(const Duration(seconds: 2));
-_availableDevices.addAll([
-  {'id': 'device_002', 'name': 'Exhaust Ctrl #2', 'signalStrength': 72},
-]);
-```
-
-**After (Real):**
-```dart
-await FlutterBluePlus.stopScan();
-await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-FlutterBluePlus.scanResults.listen((results) {
-  for (final r in results) {
-    final signal = (r.rssi + 100).clamp(0, 100);
-    _availableDevices.add({
-      'id': r.device.remoteId.str,
-      'name': r.device.platformName,
-      'signalStrength': signal,
-      'device': r.device,
-    });
-  }
-  notifyListeners();
-});
-```
+- Full rewrite — all mock/simulated code removed
+- Real BLE scanning via `FlutterBluePlus.startScan()` with 5s timeout
+- RSSI signal strength converted to 0-100% scale
+- Auto-disconnect detection via `connectionState` stream
+- `stopScan()` called before every `startScan()` to prevent duplicates
 
 #### 2. Real BLE Connection
-- **File Modified:** `lib/providers/bluetooth_provider.dart`
-- **Features:**
-  - ✅ Real `device.connect()` with 10s timeout
-  - ✅ Stores `BluetoothDevice` object reference for later commands
-  - ✅ Real `device.disconnect()` on logout/manual disconnect
-  - ✅ Connection state listener for auto-disconnect handling
-
-**Before (Mock):**
-```dart
-await Future.delayed(const Duration(seconds: 2));
-_isConnected = true;
-```
-
-**After (Real):**
-```dart
-await device.connect(timeout: const Duration(seconds: 10));
-_connectedDevice = device;
-_isConnected = true;
-device.connectionState.listen((state) {
-  if (state == BluetoothConnectionState.disconnected) {
-    _isConnected = false;
-    notifyListeners();
-  }
-});
-```
+- Real `device.connect()` with 10s timeout
+- Stores `BluetoothDevice` object reference for later commands (Phase 7)
+- Real `device.disconnect()` on logout/manual disconnect
 
 #### 3. Connect Button Fix
 - **File Modified:** `lib/widgets/bluetooth_connection_modal.dart`
-- **Issue:** Connect button had empty `onPressed: () {}` — tapping did nothing
-- **Fix:** Button now calls real `connectToDevice()` and shows result snackbar
-
-**Before:**
-```dart
-onPressed: isConnecting ? null : () {},
-```
-
-**After:**
-```dart
-onPressed: isConnecting ? null : () async {
-  final success = await bluetoothProvider.connectToDevice(
-    device['id'], device['name'],
-  );
-  if (context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(success ? '✓ Connected' : '✕ Failed'),
-    ));
-    if (success) Navigator.pop(context);
-  }
-},
-```
+- Connect button had empty `onPressed: () {}` — tapping did nothing
+- Fixed to call real `connectToDevice()` and show result snackbar
 
 ---
 
 ### 🐛 Bugs Fixed (6 total)
-
-#### Bug 1: Splash Screen Never Shown (Critical)
-- **Issue:** `home: const AuthWrapper()` in `main.dart` — `SplashScreen` existed but was never used
-- **Root Cause:** Wrong widget set as `home` in `MaterialApp`
-- **Fix:** Changed `home:` to `const SplashScreen()`
-
-```dart
-// BEFORE: home: const AuthWrapper(),
-// AFTER:  home: const SplashScreen(),
-```
-
-#### Bug 2: Route Conflict Error
-- **Fix:** Renamed `'/'` route to `'/auth'` and updated splash navigation target
-
-#### Bug 3: Wrong Android Version Detection (Critical)
-- **Fix:** Used `device_info_plus` to check actual `sdkInt`
-
-```dart
-final androidInfo = await DeviceInfoPlugin().androidInfo;
-return androidInfo.version.sdkInt >= 31;
-```
-
-#### Bug 4: flutter_blue_plus v2 Paid License
-- **Fix:** Downgraded to `flutter_blue_plus: 1.31.15`
-
-#### Bug 5: Multiple Scan Triggers
-- **Fix:** Added `await FlutterBluePlus.stopScan()` before every `startScan()`
-
-#### Bug 6: Permission Dialogs Not Appearing
-- **Root Cause:** Same as Bug 1 — resolved as part of Bug 1
-
----
-
-### 📦 Files Modified Summary
-
-```
-lib/
-├── main.dart                              🔄 home → SplashScreen, '/' → '/auth'
-├── providers/
-│   └── bluetooth_provider.dart           🔄 Full rewrite — real BLE
-├── screens/
-│   └── splash_screen.dart                🔄 Navigate to '/auth' instead of '/'
-└── widgets/
-    └── bluetooth_connection_modal.dart    🔄 Fixed connect button onPressed
-
-pubspec.yaml                              🔄 flutter_blue_plus 2.1.0 → 1.31.15
-```
-
----
-
-### 📊 Testing Results
-
-#### ✅ Verified Working on Infinix X6833B (Android 13):
-- App launch → Splash screen shows ✅
-- Splash → Permission dialogs appear ✅
-- Permissions granted → Navigate to login ✅
-- Login → Dashboard loads ✅
-- Tap "Not Connected" card → BT modal opens ✅
-- Tap Scan → Real nearby BLE devices appear ✅
-- Signal strength shown per device ✅
-- Tap Connect → Real connection attempt made ✅
-- Success/failure snackbar shows ✅
-- Dashboard updates to "Connected" state ✅
-- Auto-disconnect detected and dashboard updates ✅
+1. ✅ Splash screen never shown
+2. ✅ Route conflict (`'/'` → `'/auth'`)
+3. ✅ Wrong Android version detection
+4. ✅ Connect button broken (empty `onPressed`)
+5. ✅ Multiple scan triggers
+6. ✅ flutter_blue_plus v2 paid license — downgraded to `1.31.15`
 
 ---
 
 ### 🎯 Impact on Project Progress
-
 - **Phase 4 (Bluetooth):** 0% → **100%** ✅
 - **Overall Project:** 55% → **70%** (+15%)
-- **Presentation Score:** 55 → **70/100**
 
 ---
 
@@ -386,7 +229,7 @@ pubspec.yaml                              🔄 flutter_blue_plus 2.1.0 → 1.31.
 **Date Completed:** February 11, 2026, 9:30 PM
 
 ### 🎯 What This Phase Achieved:
-Implemented comprehensive permission system for Bluetooth and GPS, added professional UI components (FontAwesome icons, Awesome Dialog alerts), configured app icon generation, and integrated permission requests into splash screen flow.
+Implemented comprehensive permission system for Bluetooth and GPS, added professional UI components, configured app icon generation, and integrated permission requests into splash screen flow.
 
 ---
 
@@ -394,37 +237,22 @@ Implemented comprehensive permission system for Bluetooth and GPS, added profess
 
 #### 1. Permission System
 - **File Created:** `lib/utils/permission_handler.dart`
-- **Features:**
-  - ✅ Smart Bluetooth permission handling (Android 12+ support)
-  - ✅ GPS/Location permission management
-  - ✅ Beautiful permission request dialogs (Awesome Dialog)
-  - ✅ Handle denied/permanently denied scenarios
-  - ✅ Automatic retry logic
-  - ✅ Open settings helper for manually enabling permissions
+- Smart Bluetooth permission handling (Android 12+ support)
+- GPS/Location permission management
+- Beautiful permission request dialogs (Awesome Dialog)
+- Handle denied/permanently denied scenarios
+- Open settings helper for manually enabling permissions
 
 #### 2. Enhanced Splash Screen
-- **File Updated:** `lib/screens/splash_screen.dart`
-- **Flow:**
 ```
 Splash Screen Launch → Logo Animation (1.5s) → Request BT Permission → Request Location Permission → Navigate to AuthWrapper
 ```
 
-#### 3. Professional UI Packages
-```yaml
-font_awesome_flutter: ^10.7.0
-awesome_dialog: ^3.2.1
-flutter_svg: ^2.0.10
-lottie: ^3.1.2
-flutter_launcher_icons: ^0.14.1
-device_info_plus: ^10.1.0
-```
-
-#### 4. Android Permissions Declaration
+#### 3. Android Permissions Declaration
 ```xml
 <uses-permission android:name="android.permission.BLUETOOTH" />
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
-    android:usesPermissionFlags="neverForLocation" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -433,15 +261,7 @@ device_info_plus: ^10.1.0
 
 ---
 
-### 🐛 Issues Resolved
-
-1. ✅ `use_build_context_synchronously` — added `if (!context.mounted) return false;`
-2. ✅ `openAppSettings()` expects 0 arguments — removed context parameter
-
----
-
 ### 🎯 Impact on Project Progress
-
 - **Phase 3 (Permissions):** 0% → **100%** ✅
 - **Overall Project:** 42% → **55%** (+13%)
 
@@ -452,45 +272,17 @@ device_info_plus: ^10.1.0
 **Status:** ✅ COMPLETED
 **Date Completed:** February 11, 2026, 8:56 PM
 
-### 🎯 What This Phase Achieved:
-Fixed critical navigation bug that prevented users from accessing the full app after login. Integrated existing 4-tab navigation system and resolved all compilation errors.
-
----
-
 ### ✅ Bug Fixes
-
-#### Critical Navigation Bug Fixed
-```dart
-// BEFORE: return const HomeScreen();
-// AFTER:  return const MainNavigationScreen();
-```
-
----
+- Fixed critical navigation bug: `AuthWrapper` was returning `HomeScreen` instead of `MainNavigationScreen`
 
 ### ✅ Features Added
-
-#### Bottom Navigation (4 Tabs)
-- 🏠 **Home** → `DashboardScreen`
-- 🗺️ **Map** → `MapScreen`
-- 📊 **Stats** → `StatsScreen`
-- 👤 **Profile** → `ProfileScreen`
-- Uses `IndexedStack` for state preservation
-
-#### Stats Screen
-- User info card, statistics grid, recent activity timeline, weekly chart
-
-#### RestrictedArea Model
-```dart
-Map<String, dynamic> toMap()
-factory fromMap(Map, String id)
-bool containsPoint(double lat, double lng)  // Haversine formula
-double _calculateDistance(lat1, lng1, lat2, lng2)
-```
+- Bottom Navigation (4 Tabs): Home, Map, Stats, Profile
+- `IndexedStack` for state preservation
+- `RestrictedArea` model with Haversine formula for distance checking
 
 ---
 
 ### 🎯 Impact on Project Progress
-
 - **Phase 2 (Navigation):** 0% → **100%** ✅
 - **Overall Project:** 30% → **42%** (+12%)
 
@@ -502,13 +294,11 @@ double _calculateDistance(lat1, lng1, lat2, lng2)
 **Date Started:** February 11, 2026
 
 ### ✅ Completed:
-- ✅ Professional color system (`lib/utils/app_colors.dart`)
-- ✅ Typography system (`lib/utils/app_text_styles.dart`)
-- ✅ CustomButton widget
-- ✅ CustomTextField widget
-- ✅ Branded splash screen
-- ✅ Optimized login/signup screens
-- ✅ Updated theme in main.dart
+- Professional color system (`lib/utils/app_colors.dart`)
+- Typography system (`lib/utils/app_text_styles.dart`)
+- CustomButton + CustomTextField components
+- Branded splash screen
+- Optimized login/signup screens
 
 ### 🔄 Pending:
 - ⏳ ReWatch logo integration (waiting for asset file)
@@ -564,23 +354,24 @@ device_info_plus: ^10.1.0
 | 0.4.0 | Bluetooth | ✅ Complete | 100% | Feb 17, 2026 |
 | 0.5.0 | GPS | ✅ Complete | 100% | Feb 17, 2026 |
 | 0.6.0 | Map | ✅ Complete | 100% | Feb 17, 2026 |
-| 0.7.0 | Automation | ⏸️ Planned | 0% | Feb 18, 2026 |
+| 0.6.1 | Patches & Background GPS | ✅ Complete | 100% | Mar 5, 2026 |
+| 0.7.0 | Automation | ⏸️ Planned | 0% | TBD |
 
 ---
 
 ## 🎯 Next Release: [0.7.0] - Core Automation
 
-**Target Date:** February 18-20, 2026
+**Target Date:** TBD — blocked on ESP32 BLE UUIDs from hardware team
 
 ### Planned Features:
 - Define ESP32 BLE service/characteristic UUIDs with hardware team
-- Send valve open/close commands over BLE
-- Automatic exhaust control triggered by geofence entry/exit
+- Send valve OPEN command via BLE on geofence exit
+- Send valve CLOSE command via BLE on geofence entry
 - Notification when exhaust state changes automatically
-- History/log of automatic closures
+- Log history of automatic closures
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** February 17, 2026
+**Last Updated:** March 5, 2026
 **Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
