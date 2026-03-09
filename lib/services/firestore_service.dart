@@ -102,6 +102,58 @@ class FirestoreService {
         );
   }
 
+  // ─── Admin: Officials Management ─────────────────────────────
+
+  Stream<List<AppUser>> streamOfficials() {
+    return _db
+        .collection('users')
+        .where('role', isEqualTo: 'barangay_official')
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => AppUser.fromMap(d.id, d.data())).toList(),
+        );
+  }
+
+  Future<bool> createOfficialAccount({
+    required String name,
+    required String email,
+    required String barangayId,
+    required String barangayName,
+    required String createdByUid,
+  }) async {
+    try {
+      // Write user doc — Firebase Auth account created separately via admin SDK
+      // For capstone: we write the Firestore doc directly, auth done client-side
+      final newUser = AppUser(
+        uid: email, // temporary, overwritten after auth creation
+        name: name,
+        email: email,
+        role: 'barangay_official',
+        barangayId: barangayId,
+        barangayName: barangayName,
+        isActive: true,
+        createdAt: DateTime.now(),
+        createdBy: createdByUid,
+      );
+      await _db.collection('users').add(newUser.toMap());
+      return true;
+    } catch (e) {
+      print('Error creating official: $e');
+      return false;
+    }
+  }
+
+  Future<bool> setOfficialActiveStatus(String uid, bool isActive) async {
+    try {
+      await _db.collection('users').doc(uid).update({'is_active': isActive});
+      return true;
+    } catch (e) {
+      print('Error updating official status: $e');
+      return false;
+    }
+  }
+
   // ─── Admin: Request Management ────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> streamPendingRequests() {
