@@ -5,9 +5,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../../providers/restricted_areas_provider.dart';
-import '../../models/restricted_area.dart';
+import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 
 class BarangaySubmitRequestScreen extends StatefulWidget {
   const BarangaySubmitRequestScreen({super.key});
@@ -21,6 +20,7 @@ class _BarangaySubmitRequestScreenState
     extends State<BarangaySubmitRequestScreen> {
   final MapController _mapController = MapController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _remarksController = TextEditingController();
 
   LatLng? _selectedPoint;
   double _radius = 100;
@@ -39,6 +39,7 @@ class _BarangaySubmitRequestScreenState
   @override
   void dispose() {
     _nameController.dispose();
+    _remarksController.dispose();
     super.dispose();
   }
 
@@ -49,9 +50,7 @@ class _BarangaySubmitRequestScreenState
       );
       if (!mounted) return;
       _mapController.move(LatLng(position.latitude, position.longitude), 15.0);
-    } catch (_) {
-      // Stay at default coords
-    }
+    } catch (_) {}
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
@@ -69,36 +68,25 @@ class _BarangaySubmitRequestScreenState
         point.latitude,
         point.longitude,
       ).timeout(const Duration(seconds: 8));
-
       if (!mounted) return;
-
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
-        final street = p.thoroughfare ?? p.street ?? '';
-        final barangay = p.subLocality ?? '';
-        final municipality = p.locality ?? '';
-        final province = p.administrativeArea ?? '';
-        final region = p.subAdministrativeArea ?? '';
-
         final parts = [
-          street,
-          barangay,
-          municipality,
-          province,
-          region,
+          p.thoroughfare ?? p.street ?? '',
+          p.subLocality ?? '',
+          p.locality ?? '',
+          p.administrativeArea ?? '',
         ].where((s) => s.isNotEmpty).toList();
-
         setState(() {
           _resolvedAddress = parts.isNotEmpty
               ? parts.join(', ')
               : 'Unknown location';
           _isGeocoding = false;
         });
-
         if (_nameController.text.isEmpty) {
           final nameParts = [
-            barangay,
-            municipality,
+            p.subLocality ?? '',
+            p.locality ?? '',
           ].where((s) => s.isNotEmpty).toList();
           if (nameParts.isNotEmpty) {
             _nameController.text = nameParts.join(', ');
@@ -121,7 +109,7 @@ class _BarangaySubmitRequestScreenState
     });
   }
 
-  Future<void> _saveArea() async {
+  Future<void> _submitRequest() async {
     if (_selectedPoint == null) {
       _showError('Tap on the map to select a location first.');
       return;
@@ -134,33 +122,35 @@ class _BarangaySubmitRequestScreenState
 
     setState(() => _isSaving = true);
 
-    final provider = context.read<RestrictedAreasProvider>();
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final area = RestrictedArea(
-      id: '',
+    final official = context.read<AuthProvider>().appUser;
+    final fs = FirestoreService();
+
+    final success = await fs.submitZoneRequest(
       name: name,
       latitude: _selectedPoint!.latitude,
       longitude: _selectedPoint!.longitude,
       radius: _radius,
-      createdBy: currentUser?.email ?? currentUser?.uid ?? 'unknown',
-      createdAt: DateTime.now(),
+      barangayId: official?.barangayId ?? '',
+      barangayName: official?.barangayName ?? '',
+      submittedByUid: official?.uid ?? '',
+      remarks: _remarksController.text.trim(),
     );
-
-    final success = await provider.addRestrictedArea(area);
 
     if (!mounted) return;
     setState(() => _isSaving = false);
 
     if (success) {
-      Navigator.pop(context);
+      _nameController.clear();
+      _remarksController.clear();
+      setState(() => _selectedPoint = null);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✓ Restricted area added'),
+          content: Text('Request submitted — awaiting admin approval'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
     } else {
-      _showError('Failed to save. Check your connection and try again.');
+      _showError('Failed to submit. Check your connection and try again.');
     }
   }
 
@@ -177,12 +167,8 @@ class _BarangaySubmitRequestScreenState
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF111827)),
-          onPressed: () => Navigator.pop(context),
-        ),
         title: const Text(
-          'Add Restricted Area',
+          'Submit Zone Request',
           style: TextStyle(
             color: Color(0xFF111827),
             fontSize: 18,
@@ -194,17 +180,17 @@ class _BarangaySubmitRequestScreenState
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
-            child: Row(
-              children: const [
-                Icon(Icons.touch_app, color: Color(0xFF3B82F6), size: 18),
+            child: const Row(
+              children: [
+                Icon(Icons.touch_app, color: Color(0xFF3B82F6), size: 16),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tap anywhere on the map to pin a restricted area',
+                    'Tap map to pin location • Request goes to admin for approval',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12,
                       color: Color(0xFF3B82F6),
                       fontWeight: FontWeight.w500,
                     ),
@@ -214,20 +200,17 @@ class _BarangaySubmitRequestScreenState
             ),
           ),
           SizedBox(
-            height: 320,
+            height: 300,
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: const LatLng(14.5995, 121.0084),
+                initialCenter: const LatLng(10.3157, 123.8854),
                 initialZoom: 14.0,
-                minZoom: 5.0,
-                maxZoom: 18.0,
                 onTap: _onMapTap,
               ),
               children: [
                 TileLayer(
                   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.exhaust_controller_app',
                 ),
                 if (_selectedPoint != null) ...[
                   CircleLayer(
@@ -235,8 +218,8 @@ class _BarangaySubmitRequestScreenState
                       CircleMarker(
                         point: _selectedPoint!,
                         radius: _radius,
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.2),
-                        borderColor: const Color(0xFFEF4444),
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
+                        borderColor: const Color(0xFFF59E0B),
                         borderStrokeWidth: 2,
                         useRadiusInMeter: true,
                       ),
@@ -251,7 +234,7 @@ class _BarangaySubmitRequestScreenState
                         alignment: Alignment.topCenter,
                         child: const Icon(
                           Icons.location_pin,
-                          color: Color(0xFFEF4444),
+                          color: Color(0xFFF59E0B),
                           size: 40,
                         ),
                       ),
@@ -276,100 +259,51 @@ class _BarangaySubmitRequestScreenState
                         border: Border.all(color: const Color(0xFFD1D5DB)),
                       ),
                       child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 2),
-                            child: Icon(
-                              Icons.location_on,
-                              color: Color(0xFFEF4444),
-                              size: 18,
-                            ),
+                          const Icon(
+                            Icons.location_on,
+                            color: Color(0xFFF59E0B),
+                            size: 16,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: _isGeocoding
-                                ? Row(
-                                    children: const [
-                                      SizedBox(
-                                        width: 12,
-                                        height: 12,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Color(0xFF9CA3AF),
-                                        ),
-                                      ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        'Resolving address...',
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF9CA3AF),
-                                        ),
-                                      ),
-                                    ],
+                                ? const Text(
+                                    'Resolving address...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF9CA3AF),
+                                    ),
                                   )
                                 : Text(
                                     _resolvedAddress,
                                     style: const TextStyle(
-                                      fontSize: 13,
+                                      fontSize: 12,
                                       color: Color(0xFF374151),
-                                      fontWeight: FontWeight.w500,
-                                      height: 1.4,
                                     ),
                                   ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                   ],
-                  const Text(
-                    'Area Name',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF374151),
-                    ),
-                  ),
+                  _label('Zone Name'),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: _nameController,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Barangay Hall, School Zone',
-                      hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF3B82F6),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
+                  _textField(
+                    _nameController,
+                    'e.g. Barangay Hall, School Zone',
                   ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Radius',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF374151),
-                    ),
+                  const SizedBox(height: 12),
+                  _label('Remarks (optional)'),
+                  const SizedBox(height: 6),
+                  _textField(
+                    _remarksController,
+                    'Any notes for the admin...',
+                    maxLines: 2,
                   ),
+                  const SizedBox(height: 16),
+                  _label('Radius'),
                   const SizedBox(height: 6),
                   Row(
                     children: _radiusOptions.map((r) {
@@ -396,7 +330,7 @@ class _BarangaySubmitRequestScreenState
                                 Text(
                                   '${r.toInt()}',
                                   style: TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w700,
                                     color: selected
                                         ? Colors.white
@@ -408,7 +342,7 @@ class _BarangaySubmitRequestScreenState
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: selected
-                                        ? Colors.white.withValues(alpha: 0.8)
+                                        ? Colors.white70
                                         : const Color(0xFF9CA3AF),
                                   ),
                                 ),
@@ -419,13 +353,13 @@ class _BarangaySubmitRequestScreenState
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: (_isSaving || _selectedPoint == null)
                           ? null
-                          : _saveArea,
+                          : _submitRequest,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF3B82F6),
                         disabledBackgroundColor: const Color(0xFF9CA3AF),
@@ -447,7 +381,7 @@ class _BarangaySubmitRequestScreenState
                           : Text(
                               _selectedPoint == null
                                   ? 'Tap map to select location'
-                                  : 'Save Restricted Area',
+                                  : 'Submit for Approval',
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
@@ -461,6 +395,48 @@ class _BarangaySubmitRequestScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _label(String text) => Text(
+    text,
+    style: const TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: Color(0xFF374151),
+    ),
+  );
+
+  Widget _textField(
+    TextEditingController controller,
+    String hint, {
+    int maxLines = 1,
+  }) {
+    return TextField(
+      controller: controller,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFD1D5DB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
       ),
     );
   }

@@ -154,6 +154,62 @@ class FirestoreService {
     }
   }
 
+  // ─── Barangay Official ────────────────────────────────────────
+
+  Future<bool> submitZoneRequest({
+    required String name,
+    required double latitude,
+    required double longitude,
+    required double radius,
+    required String barangayId,
+    required String barangayName,
+    required String submittedByUid,
+    String remarks = '',
+  }) async {
+    try {
+      await _db.collection('restricted_areas').add({
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'radius': radius,
+        'status': 'pending',
+        'barangay_id': barangayId,
+        'barangay_name': barangayName,
+        'submitted_by_uid': submittedByUid,
+        'remarks': remarks,
+        'created_at': FieldValue.serverTimestamp(),
+        'created_by': submittedByUid,
+      });
+      return true;
+    } catch (e) {
+      print('Error submitting request: $e');
+      return false;
+    }
+  }
+
+  Stream<List<Map<String, dynamic>>> streamMyRequests(String uid) {
+    return _db
+        .collection('restricted_areas')
+        .where('submitted_by_uid', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList(),
+        );
+  }
+
+  Stream<Map<String, int>> streamMyRequestStats(String uid) {
+    return streamMyRequests(uid).map(
+      (list) => {
+        'total': list.length,
+        'pending': list.where((a) => a['status'] == 'pending').length,
+        'approved': list.where((a) => a['status'] == 'approved').length,
+        'rejected': list.where((a) => a['status'] == 'rejected').length,
+      },
+    );
+  }
+
   // ─── Admin: All Areas (Global Map) ───────────────────────────
 
   Stream<List<Map<String, dynamic>>> streamAllAreas() {
