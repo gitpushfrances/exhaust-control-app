@@ -1,116 +1,341 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/restricted_areas_provider.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import '../../services/firestore_service.dart';
 
-class AdminGlobalMapScreen extends StatelessWidget {
+class AdminGlobalMapScreen extends StatefulWidget {
   const AdminGlobalMapScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final provider = context.watch<RestrictedAreasProvider>();
+  State<AdminGlobalMapScreen> createState() => _AdminGlobalMapScreenState();
+}
 
+class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
+  final FirestoreService _fs = FirestoreService();
+  final MapController _mapController = MapController();
+  String _filter = 'all'; // all | approved | pending | rejected
+
+  static const _colors = {
+    'approved': Color(0xFF10B981),
+    'pending': Color(0xFFF59E0B),
+    'rejected': Color(0xFFEF4444),
+  };
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text(
-          'Global Map',
-          style: TextStyle(
-            color: Color(0xFF111827),
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: provider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : provider.areas.isEmpty
-          ? const _EmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: provider.areas.length,
-              itemBuilder: (context, index) {
-                final area = provider.areas[index];
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _fs.streamAllAreas(),
+        builder: (context, snap) {
+          final all = snap.data ?? [];
+          final filtered = _filter == 'all'
+              ? all
+              : all.where((a) => a['status'] == _filter).toList();
+
+          final circles = filtered.map((area) {
+            final status = area['status'] ?? 'approved';
+            final color = _colors[status] ?? const Color(0xFF10B981);
+            final lat = (area['latitude'] ?? 0.0).toDouble();
+            final lng = (area['longitude'] ?? 0.0).toDouble();
+            final radius = (area['radius'] ?? 100).toDouble();
+            return CircleMarker(
+              point: LatLng(lat, lng),
+              radius: radius,
+              useRadiusInMeter: true,
+              color: color.withValues(alpha: 0.2),
+              borderColor: color,
+              borderStrokeWidth: 2,
+            );
+          }).toList();
+
+          final markers = filtered.map((area) {
+            final status = area['status'] ?? 'approved';
+            final color = _colors[status] ?? const Color(0xFF10B981);
+            final lat = (area['latitude'] ?? 0.0).toDouble();
+            final lng = (area['longitude'] ?? 0.0).toDouble();
+            return Marker(
+              point: LatLng(lat, lng),
+              width: 32,
+              height: 32,
+              child: GestureDetector(
+                onTap: () => _showAreaSheet(context, area),
+                child: Icon(Icons.location_on, color: color, size: 32),
+              ),
+            );
+          }).toList();
+
+          return Stack(
+            children: [
+              // Map
+              FlutterMap(
+                mapController: _mapController,
+                options: const MapOptions(
+                  initialCenter: LatLng(10.3157, 123.8854), // Cebu
+                  initialZoom: 12,
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate:
+                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   ),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.all(16),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.location_on,
-                        color: Color(0xFFEF4444),
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      area.name,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  CircleLayer(circles: circles),
+                  MarkerLayer(markers: markers),
+                ],
+              ),
+
+              // AppBar overlay
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Row(
                       children: [
-                        const SizedBox(height: 4),
-                        Text(
-                          'Radius: ${area.radius.toInt()}m',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF6B7280),
-                          ),
-                        ),
-                        Text(
-                          'Lat: ${area.latitude.toStringAsFixed(4)}, Lng: ${area.longitude.toStringAsFixed(4)}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF9CA3AF),
-                            fontFamily: 'monospace',
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.08),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.map_outlined,
+                                  size: 18,
+                                  color: Color(0xFF3B82F6),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Global Map  •  ${filtered.length} zone${filtered.length != 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Color(0xFFEF4444),
-                      ),
-                      onPressed: () =>
-                          _showDeleteDialog(context, area.id, area.name),
+                  ),
+                ),
+              ),
+
+              // Filter chips
+              Positioned(
+                top: 80,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        _FilterChip(
+                          label: 'All',
+                          count: all.length,
+                          selected: _filter == 'all',
+                          color: const Color(0xFF3B82F6),
+                          onTap: () => setState(() => _filter = 'all'),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: 'Approved',
+                          count: all
+                              .where((a) => a['status'] == 'approved')
+                              .length,
+                          selected: _filter == 'approved',
+                          color: const Color(0xFF10B981),
+                          onTap: () => setState(() => _filter = 'approved'),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: 'Pending',
+                          count: all
+                              .where((a) => a['status'] == 'pending')
+                              .length,
+                          selected: _filter == 'pending',
+                          color: const Color(0xFFF59E0B),
+                          onTap: () => setState(() => _filter = 'pending'),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterChip(
+                          label: 'Rejected',
+                          count: all
+                              .where((a) => a['status'] == 'rejected')
+                              .length,
+                          selected: _filter == 'rejected',
+                          color: const Color(0xFFEF4444),
+                          onTap: () => setState(() => _filter = 'rejected'),
+                        ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add zone — coming soon')),
+                ),
+              ),
+
+              // Legend
+              Positioned(
+                bottom: 100,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _LegendItem(
+                        color: const Color(0xFF10B981),
+                        label: 'Approved',
+                      ),
+                      const SizedBox(height: 6),
+                      _LegendItem(
+                        color: const Color(0xFFF59E0B),
+                        label: 'Pending',
+                      ),
+                      const SizedBox(height: 6),
+                      _LegendItem(
+                        color: const Color(0xFFEF4444),
+                        label: 'Rejected',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           );
         },
-        backgroundColor: const Color(0xFF3B82F6),
-        icon: const Icon(Icons.add),
-        label: const Text('Add Zone'),
       ),
     );
   }
 
-  void _showDeleteDialog(BuildContext context, String areaId, String areaName) {
+  void _showAreaSheet(BuildContext context, Map<String, dynamic> area) {
+    final status = area['status'] ?? 'approved';
+    final color = _colors[status] ?? const Color(0xFF10B981);
+    final name = area['name'] ?? 'Unnamed';
+    final radius = (area['radius'] ?? 0).toInt();
+    final barangayId = area['barangay_id'] ?? '—';
+    final docId = area['doc_id'] ?? '';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.location_on, color: color, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    status[0].toUpperCase() + status.substring(1),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Barangay: $barangayId',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            ),
+            Text(
+              'Radius: ${radius}m',
+              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
+            ),
+            const SizedBox(height: 16),
+            if (docId.isNotEmpty)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _confirmDelete(context, docId, name);
+                  },
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Color(0xFFEF4444),
+                  ),
+                  label: const Text(
+                    'Delete Zone',
+                    style: TextStyle(color: Color(0xFFEF4444)),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Color(0xFFEF4444)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String docId, String name) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (_) => AlertDialog(
         title: const Text('Delete Zone?'),
-        content: Text('Remove "$areaName" from restricted areas?'),
+        content: Text('Remove "$name" from restricted areas?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -118,10 +343,9 @@ class AdminGlobalMapScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
-              final provider = context.read<RestrictedAreasProvider>();
-              await provider.deleteRestrictedArea(areaId);
+              Navigator.pop(context);
+              await _fs.deleteRestrictedArea(docId);
               if (context.mounted) {
-                Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Zone deleted'),
@@ -141,43 +365,72 @@ class AdminGlobalMapScreen extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.count,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
-            child: const Icon(
-              Icons.location_off,
-              size: 64,
-              color: Color(0xFF3B82F6),
-            ),
+          ],
+        ),
+        child: Text(
+          '$label ($count)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : color,
           ),
-          const SizedBox(height: 24),
-          const Text(
-            'No Restricted Zones',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Add zones where exhaust should auto-close',
-            style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-          ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendItem({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+        ),
+      ],
     );
   }
 }

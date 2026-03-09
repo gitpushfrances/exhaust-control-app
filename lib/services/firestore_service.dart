@@ -154,6 +154,19 @@ class FirestoreService {
     }
   }
 
+  // ─── Admin: All Areas (Global Map) ───────────────────────────
+
+  Stream<List<Map<String, dynamic>>> streamAllAreas() {
+    return _db
+        .collection('restricted_areas')
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList(),
+        );
+  }
+
   // ─── Admin: Request Management ────────────────────────────────
 
   Stream<List<Map<String, dynamic>>> streamPendingRequests() {
