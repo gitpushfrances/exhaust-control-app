@@ -154,6 +154,64 @@ class FirestoreService {
     }
   }
 
+  // ─── Notifications ────────────────────────────────────────────
+
+  Future<void> createNotification({
+    required String uid,
+    required String title,
+    required String body,
+    required String type, // 'approved' | 'rejected' | 'submitted'
+    String areaId = '',
+  }) async {
+    await _db.collection('notifications').add({
+      'uid': uid,
+      'title': title,
+      'body': body,
+      'type': type,
+      'area_id': areaId,
+      'is_read': false,
+      'created_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<List<Map<String, dynamic>>> streamNotifications(String uid) {
+    return _db
+        .collection('notifications')
+        .where('uid', isEqualTo: uid)
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList(),
+        );
+  }
+
+  Stream<int> streamUnreadNotificationCount(String uid) {
+    return _db
+        .collection('notifications')
+        .where('uid', isEqualTo: uid)
+        .where('is_read', isEqualTo: false)
+        .snapshots()
+        .map((snap) => snap.docs.length);
+  }
+
+  Future<void> markNotificationRead(String docId) async {
+    await _db.collection('notifications').doc(docId).update({'is_read': true});
+  }
+
+  Future<void> markAllNotificationsRead(String uid) async {
+    final batch = _db.batch();
+    final snap = await _db
+        .collection('notifications')
+        .where('uid', isEqualTo: uid)
+        .where('is_read', isEqualTo: false)
+        .get();
+    for (final doc in snap.docs) {
+      batch.update(doc.reference, {'is_read': true});
+    }
+    await batch.commit();
+  }
+
   // ─── Barangay Official ────────────────────────────────────────
 
   Future<bool> submitZoneRequest({
@@ -242,11 +300,24 @@ class FirestoreService {
     required String adminUid,
   }) async {
     try {
+      final doc = await _db.collection('restricted_areas').doc(docId).get();
+      final data = doc.data() ?? {};
       await _db.collection('restricted_areas').doc(docId).update({
         'status': 'approved',
         'approved_at': FieldValue.serverTimestamp(),
         'approved_by_uid': adminUid,
       });
+      final submittedBy = data['submitted_by_uid'] ?? '';
+      final name = data['name'] ?? 'Zone';
+      if (submittedBy.isNotEmpty) {
+        await createNotification(
+          uid: submittedBy,
+          title: 'Zone Approved ✅',
+          body: '"$name" has been approved and is now active.',
+          type: 'approved',
+          areaId: docId,
+        );
+      }
       return true;
     } catch (e) {
       print('Error approving request: $e');
@@ -260,12 +331,25 @@ class FirestoreService {
     required String reason,
   }) async {
     try {
+      final doc = await _db.collection('restricted_areas').doc(docId).get();
+      final data = doc.data() ?? {};
       await _db.collection('restricted_areas').doc(docId).update({
         'status': 'rejected',
         'rejection_reason': reason,
         'approved_at': FieldValue.serverTimestamp(),
         'approved_by_uid': adminUid,
       });
+      final submittedBy = data['submitted_by_uid'] ?? '';
+      final name = data['name'] ?? 'Zone';
+      if (submittedBy.isNotEmpty) {
+        await createNotification(
+          uid: submittedBy,
+          title: 'Zone Rejected ❌',
+          body: '"$name" was rejected. Reason: $reason',
+          type: 'rejected',
+          areaId: docId,
+        );
+      }
       return true;
     } catch (e) {
       print('Error rejecting request: $e');

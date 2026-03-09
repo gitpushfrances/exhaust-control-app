@@ -6,22 +6,23 @@
 
 ---
 
-## 🎯 Overall Progress: ~60% Complete
+## 🎯 Overall Progress: ~75% Complete
+
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
-> Original rider-only scope was 90% complete. Role expansion resets overall to ~55%.
-> Phase 7 foundation work (Steps 7.1–7.7 + 7.12) now complete — bumped to ~60%.
+> Original rider-only scope was 90% complete. Role expansion reset overall to ~55%.
+> Phase 7 is now ~80% done — all major screens built, only notifications + security rules remain.
 
 ```
-[███████████████████░░░░░░░░░░░░░] 60%
+[████████████████████████░░░░░░░░] 75%
 ```
 
 ### Scope Breakdown:
 | Scope | Progress | Notes |
 |-------|----------|-------|
-| Rider functionality | ~95% | Zone management buttons removed ✅ |
+| Rider functionality | ~95% | All rider screens done, zone management removed ✅ |
 | Phase 7 foundation (models, routing, structure) | 100% | Steps 7.1–7.7, 7.12 done ✅ |
-| Super Admin screens (actual content) | ~10% | Nav shell + global map list done, dashboards pending |
-| Barangay Official screens (actual content) | ~10% | Nav shell + submit skeleton done, logic pending |
+| Super Admin screens | ~95% | Dashboard, Inbox, Detail, Officials, Create Official, Global Map all live ✅ |
+| Barangay Official screens | ~75% | Home, Submit, My Requests done; Notifications + profile pending |
 | Phase 8 BLE Automation | 0% | Blocked on ESP32 UUIDs |
 
 ---
@@ -30,154 +31,171 @@
 
 ---
 
-### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~40% of phase complete)
+### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~80% of phase complete)
 
 **Status:** 🔄 IN PROGRESS
 **Date Started:** March 2026
 
 #### Progress:
 ```
-[████████████░░░░░░░░░░░░░░░░░░░░] ~40% of phase
+[█████████████████████████░░░░░░░] ~80% of phase
 ```
 
 #### Step Checklist:
 
 **Group A — Low-risk additive changes**
-- [x] 7.1 — `RestrictedArea` model updated (new fields with defaults) ✅
-- [x] 7.2 — Sign Up screen writes `role: "rider"` on register ✅
-- [x] 7.3 — `AuthWrapper` routes to 3 navigation screens by role ✅
-- [ ] 7.4 — ⏳ Seed Super Admin manually in Firestore console — **NEXT ACTION**
-- [x] 7.5 — `streamApprovedAreas()` filters `status == "approved"` ✅
-- [x] 7.6 — Manage/Add area buttons removed from rider UI ✅
+- [x] 7.1 — `RestrictedArea` model updated ✅
+- [x] 7.2 — Sign Up writes `role: "rider"` ✅
+- [x] 7.3 — `AuthWrapper` routes by role to 3 nav screens ✅
+- [ ] 7.4 — ⏳ Seed Super Admin in Firestore console — **STILL PENDING (manual step)**
+- [x] 7.5 — `streamApprovedAreas()` filters approved only ✅
+- [x] 7.6 — Zone management removed from rider UI ✅
 
 **Group B — Admin screens**
-- [x] 7.7 — `AdminNavigationScreen` + skeleton screens created ✅
-- [ ] 7.8 — Admin Home Dashboard (stat cards, recent activity)
-- [ ] 7.9 — Request Inbox + Detail + Approve/Reject flow
-- [ ] 7.10 — Manage Officials + Create Official form
-- [ ] 7.11 — Admin Global Map (filter chips, add zone directly) *(list view exists, full map pending)*
+- [x] 7.7 — `AdminNavigationScreen` + skeleton screens ✅
+- [x] 7.8 — Admin Home Dashboard (stat cards + recent activity) ✅
+- [x] 7.9 — Request Inbox + Detail + Approve/Reject ✅
+- [x] 7.10 — Manage Officials + Create Official form ✅
+- [x] 7.11 — Admin Global Map (filter chips, circle overlays, area sheet) ✅
 
 **Group C — Barangay Official screens**
-- [x] 7.12 — `BarangayNavigationScreen` + skeleton screens created ✅
-- [ ] 7.13 — Barangay Home Dashboard
-- [ ] 7.14 — Submit Request screen (real logic, boundary check)
-- [ ] 7.15 — Barangay boundary check (Option A — Haversine circle)
-- [ ] 7.16 — My Requests screen (3 inner tabs)
-- [ ] 7.17 — Notifications screen + bell icon
+- [x] 7.12 — `BarangayNavigationScreen` + skeleton screens ✅
+- [x] 7.13 — Barangay Home Dashboard (stats + recent requests) ✅
+- [x] 7.14 — Submit Request screen (real pending submission logic) ✅
+- [ ] 7.15 — ⏳ Barangay boundary check (Haversine)
+- [x] 7.16 — My Requests (3 tabs: Pending / Approved / Rejected) ✅
+- [ ] 7.17 — ⏳ Notifications screen + bell icon
 
 **Group D — Wiring + security**
-- [ ] 7.18 — Write Firestore notification documents on events
+- [ ] 7.18 — ⏳ Write Firestore notification docs on approve/reject events
 - [ ] 7.19 — ⚠️ Firestore security rules (HIGH RISK — do last)
 - [ ] 7.20 — FCM push notifications (optional)
 
 ---
 
-### What Was Done in Phase 7 So Far
+### What Was Done This Session (Steps 7.8–7.16)
 
 | File | Change | Type |
 |------|--------|------|
-| `lib/models/app_user.dart` | Created — full AppUser model with role, isActive, barangayId | ➕ New |
-| `lib/models/restricted_area.dart` | Added status, barangayId, submittedByUid, rejectionReason, approvedAt, approvedByUid | ✏️ Updated |
-| `lib/services/firestore_service.dart` | Added getUser(), createUserDoc(), streamApprovedAreas(); removed old getRestrictedAreas(email), streamRestrictedAreas(), old deleteRestrictedArea(id, email) | ✏️ Updated |
-| `lib/providers/auth_provider.dart` | Added AppUser field, role getter, _loadAppUser(), deactivated account block; updated signUp() to write Firestore doc and accept name param | ✏️ Updated |
-| `lib/providers/restricted_areas_provider.dart` | initialize() takes zero args now, uses streamApprovedAreas() stream; removed _userEmail and loadRestrictedAreas() | ✏️ Updated |
-| `lib/services/auth_service.dart` | Restored — was accidentally overwritten with auth_provider content | 🔧 Fixed |
-| `lib/screens/signup_screen.dart` | Added name field + controller; passes name to signUp() | ✏️ Updated |
-| `lib/main.dart` | AuthWrapper now routes by role to 3 nav screens | ✏️ Updated |
-| `lib/screens/rider/` | New folder — all 4 rider screens moved here, import paths fixed (../ → ../../) | 📁 Restructured |
-| `lib/screens/rider/map_screen.dart` | Removed "Manage Areas" IconButton from AppBar | ➖ Removed |
-| `lib/screens/rider/profile_screen.dart` | Removed "Restricted Areas" settings item and ManageRestrictedAreasScreen navigation | ➖ Removed |
-| `lib/screens/rider/main_navigation_screen.dart` | initialize() call fixed — no longer passes userEmail arg | 🔧 Fixed |
-| `lib/screens/admin/` | New folder — AdminNavigationScreen + 4 screens (home/inbox/officials/map skeletons) | ➕ New |
-| `lib/screens/admin/admin_global_map_screen.dart` | Repurposed from manage_restricted_areas_screen; class renamed, Add Zone screen nav removed, FAB shows snackbar | 🔄 Repurposed |
-| `lib/screens/barangay/` | New folder — BarangayNavigationScreen + 4 screens (home/submit/requests/profile) | ➕ New |
-| `lib/screens/barangay/barangay_submit_request_screen.dart` | Repurposed from add_restricted_area_screen; class renamed to BarangaySubmitRequestScreen, map-tap logic preserved | 🔄 Repurposed |
-| `lib/screens/stats_screen.dart` | Deleted — removed in Phase 6.1, was dead file | ❌ Deleted |
-| `lib/screens/settings_screen.dart` | Deleted — was never wired up, dead file | ❌ Deleted |
-| `lib/screens/manage_restricted_areas_screen.dart` | Deleted from root — repurposed to admin_global_map_screen | ❌ Deleted |
-| `lib/screens/add_restricted_area_screen.dart` | Deleted from root — repurposed to barangay_submit_request_screen | ❌ Deleted |
-| `lib/models/restricted_area.dart.bak` | Deleted — backup file, no longer needed | ❌ Deleted |
+| `lib/screens/admin/admin_home_screen.dart` | Full dashboard — 4 live stat cards + recent activity feed | ✏️ Updated |
+| `lib/screens/admin/admin_request_inbox_screen.dart` | Full pending requests list with cards + navigation to detail | ✏️ Updated |
+| `lib/screens/admin/admin_request_detail_screen.dart` | NEW — map preview, info card, approve + reject (with reason) flow | ➕ New |
+| `lib/screens/admin/admin_manage_officials_screen.dart` | Full officials list with active/inactive filter + deactivate/reactivate | ✏️ Updated |
+| `lib/screens/admin/admin_create_official_screen.dart` | NEW — creates Firebase Auth account + Firestore user doc for official | ➕ New |
+| `lib/screens/admin/admin_navigation_screen.dart` | Added `_AdminNavigationState` implement + `jumpTo()` for stat card taps | ✏️ Updated |
+| `lib/screens/admin/admin_global_map_screen.dart` | Full OSM map — color-coded circles/pins, filter chips, area bottom sheet, delete | ✏️ Updated |
+| `lib/screens/barangay/barangay_home_screen.dart` | Full dashboard — welcome card, 4 stat cards, recent requests list | ✏️ Updated |
+| `lib/screens/barangay/barangay_submit_request_screen.dart` | Real submission logic — writes `status: pending` to Firestore via official's uid/barangay | ✏️ Updated |
+| `lib/screens/barangay/barangay_my_requests_screen.dart` | 3-tab screen — Pending/Approved/Rejected; rejected cards show rejection reason | ✏️ Updated |
+| `lib/services/firestore_service.dart` | Added 11 new methods across admin stats, request mgmt, officials mgmt, barangay submission | ✏️ Updated |
+
+#### FirestoreService — All New Methods Added This Session
+| Method | Purpose |
+|--------|---------|
+| `streamPendingRequestsCount()` | Live count for admin stat card |
+| `streamApprovedAreasCount()` | Live count for admin stat card |
+| `streamOfficialsCount()` | Live count for admin stat card |
+| `streamRidersCount()` | Live count for admin stat card |
+| `streamRecentActivity()` | Last 5 approved/rejected areas for admin home |
+| `streamAllAreas()` | All areas (all statuses) for admin global map |
+| `streamPendingRequests()` | Pending areas list for admin inbox |
+| `approveRequest()` | Sets status approved + timestamp + admin uid |
+| `rejectRequest()` | Sets status rejected + reason + timestamp |
+| `streamOfficials()` | All barangay officials as AppUser stream |
+| `setOfficialActiveStatus()` | Toggles is_active on official's user doc |
+| `submitZoneRequest()` | Writes new pending zone request from barangay official |
+| `streamMyRequests(uid)` | Official's own submissions stream |
+| `streamMyRequestStats(uid)` | Derived counts (total/pending/approved/rejected) |
+
+#### Bugs Fixed This Session
+| Bug | Fix |
+|-----|-----|
+| `AuthProvider` name clash with `firebase_auth`'s own `AuthProvider` in `admin_create_official_screen.dart` | Aliased both imports: `app_auth` + `fb_auth` |
+| `const AndroidSettings` not a const constructor in `barangay_submit_request_screen.dart` | Removed `const` keyword |
 
 ---
 
-### ⚠️ Immediate Next Actions
+### What Was Done Previously (Steps 7.1–7.7 + 7.12)
+
+| File | Change | Type |
+|------|--------|------|
+| `lib/models/app_user.dart` | Created — full AppUser model | ➕ New |
+| `lib/models/restricted_area.dart` | Added status + barangay fields | ✏️ Updated |
+| `lib/services/firestore_service.dart` | Added getUser, createUserDoc, streamApprovedAreas | ✏️ Updated |
+| `lib/providers/auth_provider.dart` | Added AppUser, role getter, deactivated block | ✏️ Updated |
+| `lib/providers/restricted_areas_provider.dart` | initialize() takes 0 args, uses stream | ✏️ Updated |
+| `lib/services/auth_service.dart` | Restored after accidental overwrite | 🔧 Fixed |
+| `lib/screens/signup_screen.dart` | Added name field | ✏️ Updated |
+| `lib/main.dart` | AuthWrapper routes by role | ✏️ Updated |
+| `lib/screens/rider/` | All 4 rider screens moved here | 📁 Restructured |
+| `lib/screens/admin/` | Nav screen + 4 skeletons created | ➕ New |
+| `lib/screens/barangay/` | Nav screen + 4 skeletons created | ➕ New |
+| `lib/screens/stats_screen.dart` | Deleted — dead file | ❌ Deleted |
+| `lib/screens/settings_screen.dart` | Deleted — never wired up | ❌ Deleted |
+| `lib/screens/manage_restricted_areas_screen.dart` | Deleted root copy — repurposed to admin | ❌ Deleted |
+| `lib/screens/add_restricted_area_screen.dart` | Deleted root copy — repurposed to barangay | ❌ Deleted |
+| `lib/models/restricted_area.dart.bak` | Deleted — backup file | ❌ Deleted |
+
+---
+
+### ⚠️ Immediate Next Actions (Phase 7 tail)
 1. **Step 7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-   - Go to Firestore → `/users` collection → Add document
-   - Fields: `uid` (Firebase Auth UID), `name`, `email`, `role: "superadmin"`, `is_active: true`, `created_at`
-2. Run `flutter analyze` — confirm zero errors before building new screens
-3. Start **Step 7.8** — Admin Home Dashboard
+2. **Step 7.17** — `barangay_notifications_screen.dart` + bell icon in barangay nav
+3. **Step 7.18** — Write `/notifications` Firestore docs when admin approves/rejects
+4. **Step 7.19** — Tighten Firestore security rules (do last, high risk)
+5. **Step 7.15** — Barangay boundary check using Haversine
+
+---
+
+### 🔜 NEXT PHASE — Phase 8: Core BLE Automation
+
+**Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
+
+Once Phase 7 is fully wrapped:
+
+| Task | Notes |
+|------|-------|
+| Obtain ESP32 Service UUID + Characteristic UUID | From hardware team |
+| Define OPEN/CLOSE byte command protocol | Agree with hardware team |
+| Wire `ExhaustProvider` — send `CLOSE` on geofence entry | Uses existing Haversine check |
+| Wire `ExhaustProvider` — send `OPEN` on geofence exit | |
+| Log auto-closure events to Firestore | For audit trail |
+| End-to-end test on device | Rider enters zone → BLE fires → valve closes |
 
 ---
 
 ### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete)
-
 **Status:** ✅ COMPLETE — March 5, 2026
-
-- [x] Stats tab removed (4 → 3 tabs)
-- [x] Timer → getPositionStream for background GPS
-- [x] Foreground service + background location permissions
-- [x] Map-tap area creation rewrite (pin drops instantly, async geocoding)
-- [x] Address format: Street → Barangay → Municipality → Province → Region
-- [x] AnimationController render storm removed
-- [x] Firestore database created + rules fixed
-- [x] isActive filter bug fixed
-- [x] Provider initialization bug fixed
-- [x] Verified on Infinix X6833B (Android 13)
+*(Details unchanged — see CHANGELOGS.md)*
 
 ---
 
 ### ✅ PHASE 6: MAP INTEGRATION (100% Complete)
-
 **Status:** ✅ COMPLETE — February 17, 2026
-
-- [x] flutter_map + OSM tiles
-- [x] Motorcycle marker at real GPS position
-- [x] Red circle overlays for restricted areas
-- [x] MapController + center-on-user button
 
 ---
 
 ### ✅ PHASE 5: GPS & LOCATION SERVICES (100% Complete)
-
 **Status:** ✅ COMPLETE — February 17, 2026
-
-- [x] Geolocator high-accuracy GPS
-- [x] Reverse geocoding → human-readable address
-- [x] Live location + isInRestrictedArea badge on dashboard
 
 ---
 
 ### ✅ PHASE 4: BLUETOOTH INTEGRATION (100% Complete)
-
 **Status:** ✅ COMPLETE — February 17, 2026
-
-- [x] Real BLE scanning + connection via flutter_blue_plus 1.31.15
-- [x] BluetoothDevice reference stored for Phase 8
-- [x] 6 bugs fixed
 
 ---
 
 ### ✅ PHASE 3: DEVICE PERMISSIONS (100% Complete)
-
 **Status:** ✅ COMPLETE — February 11, 2026
-
-- [x] AppPermissionHandler — BT + GPS (Android 12+ support)
-- [x] 7 permissions in AndroidManifest
 
 ---
 
 ### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
-
 **Status:** ✅ COMPLETE — February 11, 2026
-
-- [x] Bottom nav with IndexedStack
-- [x] RestrictedArea model + Haversine formula
-- [x] AuthWrapper routing bug fixed
 
 ---
 
 ### 🔄 PHASE 1: UI/UX FOUNDATION (80% Complete)
-
 - [x] Color system, typography, CustomButton, CustomTextField
 - [x] Branded splash, login/signup screens
 - [ ] ⏳ Logo integration (waiting for asset)
@@ -185,13 +203,11 @@
 ---
 
 ### ✅ PHASE 0: FOUNDATION (100% Complete)
-
 Firebase Auth, Provider, basic routing, core screens.
 
 ---
 
 ### ⏸️ PHASE 8: CORE AUTOMATION (0% — Blocked)
-
 **Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
 
 - [ ] ESP32 BLE Service UUID + Characteristic UUID
@@ -247,8 +263,10 @@ flutter_launcher_icons: ^0.14.1
 | 6 | Live Map & GPS | ✅ Done | Feb 17 |
 | 7 | Background GPS + Map-tap Areas | ✅ Done | Mar 5 |
 | 8 | Role Foundation (models, routing, structure) | ✅ Done | Mar 9 |
-| 9 | Multi-Role Screens (Admin + Barangay) | 🔄 In Progress | Mar 2026 |
-| 10 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
+| 9 | Admin Screens Complete | ✅ Done | Mar 9 |
+| 10 | Barangay Screens (core) | ✅ Done | Mar 9 |
+| 11 | Notifications + Security Rules | 🔄 Next | Mar 2026 |
+| 12 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
 
 ---
 
@@ -256,15 +274,16 @@ flutter_launcher_icons: ^0.14.1
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Debug `print()` in splash + permission handler | Low | Clean before final demo |
+| Debug `print()` throughout codebase | Low | Clean before final demo |
+| `withOpacity` → `withValues()` deprecation warnings (38 instances) | Low | Batch fix before demo |
+| `activeColor` → `activeThumbColor` (2 instances) | Low | Minor deprecation |
 | BLE scan not filtered to ESP32 UUID | Medium | Fix in Phase 8 |
 | ESP32 BLE UUIDs not defined | **Blocker** | Needed for Phase 8 |
 | iOS Info.plist not configured | Low | Android only for capstone |
-| Firestore rules too permissive | Medium | Tighten in Step 7.19 — do last |
-| Admin request detail screen not yet created | Medium | Needed for Step 7.9 |
-| barangay_notifications_screen.dart not yet created | Medium | Needed for Step 7.17 |
-| admin_request_detail_screen.dart not yet created | Medium | Needed for Step 7.9 |
-| admin_create_official_screen.dart not yet created | Medium | Needed for Step 7.10 |
+| Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
+| `barangay_profile_screen.dart` still a placeholder | Low | Needs real profile UI |
+| Step 7.15 boundary check not implemented | Medium | Officials can submit outside their barangay |
+| Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
 
 ---
 
