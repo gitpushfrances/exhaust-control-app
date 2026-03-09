@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.7.0] - Phase 7: Multi-Role System Expansion
 
-**Status:** 🔄 IN PROGRESS (~80% of phase complete)
+**Status:** 🔄 IN PROGRESS (~90% of phase complete)
 **Date Started:** March 2026
 
 ### 🎯 What This Phase Will Achieve:
@@ -41,117 +41,107 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 
 ---
 
-### ✅ Completed This Session (Steps 7.8–7.16)
+### ✅ Completed This Session — Patches & Fixes (March 9, 2026)
 
 ---
 
+#### Patch — `RestrictedArea.fromMap()` Firestore Timestamp crash fix (`lib/models/restricted_area.dart`)
+- **Bug:** `fromMap()` was calling `DateTime.parse()` on Firestore `Timestamp` objects — causes a silent crash, objects get dropped from the stream
+- **Root cause:** New documents from `submitZoneRequest()` write `created_at` as `FieldValue.serverTimestamp()` (a Firestore Timestamp), but `fromMap()` expected a plain ISO string
+- **Fix:** Added `parseDate()` and `parseDateNullable()` helpers inside `fromMap()` that handle all 3 types — Firestore Timestamp, DateTime, and String
+- **Fix:** Field key corrected — reads `created_at` (snake_case) with fallback to `createdAt` (camelCase) for backward compat with old documents
+- **Impact:** Rider map now correctly shows approved zones submitted through the new barangay flow
+
+#### Patch — Firestore composite indexes created (Firebase Console)
+- **Bug:** `streamMyRequests()` and `streamPendingRequests()` were silently returning empty results — Firestore refuses `where + orderBy` queries without a composite index
+- **Root cause:** Three queries all use compound filters that require indexes not previously created
+- **Fix:** Created 3 composite indexes in Firebase Console:
+  - `restricted_areas`: `submitted_by_uid ASC` + `created_at DESC`
+  - `restricted_areas`: `status ASC` + `created_at DESC`
+  - `restricted_areas`: `status ASC` + `approved_at DESC`
+- **Impact:** Barangay home stats, My Requests tabs, and Admin inbox all now populate correctly
+
+#### Patch — Old dirty Firestore documents deleted
+- **Bug:** Legacy test documents in `restricted_areas` written by the old `add_restricted_area_screen.dart` were missing `status`, `submitted_by_uid`, `barangay_id` fields — causing silent query misses
+- **Fix:** Manually deleted all 3 legacy documents from Firebase Console
+- **Impact:** Clean collection, all documents now follow the correct schema
+
+#### Patch — `admin_request_detail_screen.dart` converted to `StatefulWidget` with loading state
+- **Bug:** Approve/Reject buttons had no loading state — tapping during Firestore write could trigger multiple calls or cause a black screen flash on slow connections
+- **Fix:** Converted from `StatelessWidget` to `StatefulWidget`
+- **Added:** `_isProcessing` boolean — disables both buttons during any ongoing Firestore write
+- **Added:** `CircularProgressIndicator` replaces Approve button icon while processing
+- **Added:** `mounted` check before all `setState` and `Navigator.pop` calls — prevents calling setState on disposed widget
+- **Added:** All data extracted in `initState()` from `widget.data` — no more reading `data[]` in `build()` which caused reference issues after conversion
+- **Removed:** Stale local variable references (`fs`, `adminUid`, `docId` etc.) from `build()` — replaced with `_fs`, `_adminUid`, `_docId` instance fields
+- **Impact:** Approve/Reject flow is now race-condition safe and production-ready
+
+#### Patch — Live location stream added to Admin and Barangay maps
+- **Bug:** Admin global map was hardcoded to Cebu coordinates. Barangay submit map fetched location once with no updates
+- **Fix:** Added `_startLocationStream()` with 8-second interval to `AdminGlobalMapScreen`
+- **Fix:** Added `_startLocationStream()` with 4-second interval to `BarangaySubmitRequestScreen`
+- **Added:** `_currentLat`, `_currentLng`, `_locationReady` fields to admin map state
+- **Added:** `_currentLat`, `_currentLng` fields to barangay submit state
+- **Added:** Blue dot current location marker on both admin and barangay maps
+- **Added:** Recenter FAB on admin map (bottom right, above legend)
+- **Added:** Recenter FAB on barangay submit map (bottom right of map)
+- **Added:** `_positionStream?.cancel()` in `dispose()` on both screens — no memory leaks
+- **Impact:** All 3 role maps now show live user location with recenter capability
+
+#### Patch — Barangay submit map widget structure fixed
+- **Bug:** `SizedBox` containing `FlutterMap` was not wrapped in a `Stack` — could not overlay the recenter FAB or blue dot marker
+- **Fix:** Wrapped `FlutterMap` inside `Stack` within the `SizedBox`
+- **Impact:** Blue dot and recenter button render correctly on barangay submit map
+
+#### Patch — Ghost files removed from `lib/screens/` root
+- **Bug:** Old `main_navigation_screen.dart` and `profile_screen.dart` at root `lib/screens/` were restored by git, causing duplicate class errors and stale analyzer cache
+- **Fix:** Deleted both root-level ghost files with `rm`
+- **Fix:** Committed deletions immediately to prevent git from restoring them again
+- **Impact:** Zero duplicate class errors, clean analyzer output
+
+---
+
+### ✅ Completed Previously (Steps 7.8–7.16)
+
 #### Step 7.8 — Admin Home Dashboard (`lib/screens/admin/admin_home_screen.dart`)
 - **Replaced:** Placeholder "coming soon" with full dashboard UI
-- **Added:** 4 live stat cards — Pending Requests, Approved Zones, Officials, Riders — each backed by a real Firestore stream
-- **Added:** Stat card tap navigates to relevant tab (Pending → Requests tab, Officials → Officials tab) via `_AdminNavigationState` abstract interface
-- **Added:** Recent Activity feed — shows last 5 approved/rejected zones with color-coded icons and relative timestamps
-- **Added:** `_StatCard`, `_ActivityItem` private widgets
+- **Added:** 4 live stat cards — Pending Requests, Approved Zones, Officials, Riders
+- **Added:** Recent Activity feed — last 5 approved/rejected zones with relative timestamps
 
-#### Step 7.8 — FirestoreService additions
-- **Added:** `streamPendingRequestsCount()` — live count of `status == "pending"` docs
-- **Added:** `streamApprovedAreasCount()` — live count of `status == "approved"` docs
-- **Added:** `streamOfficialsCount()` — live count of `role == "barangay_official"` users
-- **Added:** `streamRidersCount()` — live count of `role == "rider"` users
-- **Added:** `streamRecentActivity()` — last 5 approved/rejected areas ordered by `approved_at`
+#### Step 7.9 — Request Inbox + Detail (`lib/screens/admin/admin_request_inbox_screen.dart`, `admin_request_detail_screen.dart`)
+- **Added:** Full pending requests list with `_RequestCard`
+- **Added:** Detail screen — OSM map preview, info card, Approve + Reject flow with reason bottom sheet
 
-#### Step 7.9 — Request Inbox (`lib/screens/admin/admin_request_inbox_screen.dart`)
-- **Replaced:** Placeholder with full pending requests list
-- **Added:** `_RequestCard` — shows zone name, barangay, radius, relative time, pending badge, chevron
-- **Added:** Tapping a card navigates to `AdminRequestDetailScreen`
-- **Removed:** Unused `provider` and `auth_provider` imports (were flagged by analyzer)
-
-#### Step 7.9 — Request Detail (`lib/screens/admin/admin_request_detail_screen.dart`) ← NEW FILE
-- **Created:** Full detail screen — map preview (OSM + circle + pin), info card (name, barangay, coords, radius, remarks)
-- **Added:** Approve button — calls `approveRequest()`, shows snackbar, pops back
-- **Added:** Reject button — opens bottom sheet with reason text field, calls `rejectRequest()` on confirm
-- **Added:** `_InfoRow` private widget
-
-#### Step 7.9 — FirestoreService additions
-- **Added:** `streamPendingRequests()` — real-time stream of all pending areas ordered by `created_at`
-- **Added:** `approveRequest({docId, adminUid})` — updates status to `"approved"`, writes `approved_at` + `approved_by_uid`
-- **Added:** `rejectRequest({docId, adminUid, reason})` — updates status to `"rejected"`, writes `rejection_reason`
-
-#### Step 7.10 — Manage Officials (`lib/screens/admin/admin_manage_officials_screen.dart`)
-- **Replaced:** Placeholder with full officials list
-- **Added:** Active/Inactive toggle filter in AppBar (segmented button style)
-- **Added:** `_OfficialCard` — avatar initial, name, barangay, email, status badge, Deactivate/Reactivate button
-- **Added:** Confirm dialog before toggling active status
-- **Added:** FAB → navigates to `AdminCreateOfficialScreen`
-
-#### Step 7.10 — Create Official (`lib/screens/admin/admin_create_official_screen.dart`) ← NEW FILE
-- **Created:** Full form — Full Name, Email, Password (toggle visibility), Barangay Name, Barangay ID
-- **Added:** Creates Firebase Auth account via `FirebaseAuth.instance.createUserWithEmailAndPassword()`
-- **Added:** Writes Firestore `/users/{uid}` doc with `role: "barangay_official"`, `barangay_id`, `barangay_name`, `is_active: true`
-- **Fixed:** `AuthProvider` name clash with `firebase_auth`'s own `AuthProvider` — resolved by aliasing both imports (`app_auth`, `fb_auth`)
-
-#### Step 7.10 — FirestoreService additions
-- **Added:** `streamOfficials()` — real-time stream of all `role == "barangay_official"` users as `List<AppUser>`
-- **Added:** `setOfficialActiveStatus(uid, isActive)` — updates `is_active` field on user doc
-- **Removed:** `createOfficialAccount()` stub — actual account creation handled directly in `AdminCreateOfficialScreen` using Firebase Auth
+#### Step 7.10 — Manage Officials + Create Official (`lib/screens/admin/admin_manage_officials_screen.dart`, `admin_create_official_screen.dart`)
+- **Added:** Officials list with active/inactive filter, deactivate/reactivate toggle
+- **Added:** Create Official form — creates Firebase Auth account + Firestore user doc
 
 #### Step 7.11 — Admin Global Map (`lib/screens/admin/admin_global_map_screen.dart`)
-- **Replaced:** Static list view with full interactive OSM map
-- **Added:** `streamAllAreas()` — streams ALL areas regardless of status (pending + approved + rejected)
-- **Added:** Filter chips — All, Approved (green), Pending (amber), Rejected (red) — updates map in real time
-- **Added:** Color-coded circle overlays and pin markers per status
-- **Added:** Tapping a pin opens bottom sheet — shows name, barangay, radius, status badge, Delete button
-- **Added:** Delete confirm dialog — calls `deleteRestrictedArea(docId)`
-- **Added:** Legend overlay (bottom-right) — color key for 3 statuses
-- **Added:** Header overlay (top) — zone count updates with filter
-- **Removed:** Old list-based `ListView.builder` UI
-- **Removed:** FAB "coming soon" snackbar — replaced by map interaction
-
-#### Step 7.11 — FirestoreService additions
-- **Added:** `streamAllAreas()` — streams entire `restricted_areas` collection ordered by `created_at` descending, returns `List<Map>` with `doc_id`
+- **Added:** Full OSM map, filter chips (All/Approved/Pending/Rejected), color-coded circles/pins
+- **Added:** Area bottom sheet on pin tap — delete confirm dialog
 
 #### Step 7.13 — Barangay Home Dashboard (`lib/screens/barangay/barangay_home_screen.dart`)
-- **Replaced:** Placeholder with full dashboard
-- **Added:** Welcome card with gradient background showing official's name
-- **Added:** 4 stat cards (Total, Pending, Approved, Rejected) backed by `streamMyRequestStats(uid)`
-- **Added:** Recent Requests list — last 3 of the official's own submissions with color-coded status dots
+- **Added:** Welcome card, 4 live stat cards, recent requests list (last 3)
 
 #### Step 7.14 — Submit Request (`lib/screens/barangay/barangay_submit_request_screen.dart`)
-- **Updated:** Was saving directly as `approved` via `RestrictedAreasProvider` — now submits as `status: "pending"` via `FirestoreService.submitZoneRequest()`
-- **Added:** Remarks field (optional, sent to admin)
-- **Updated:** AppBar title changed from "Add Restricted Area" to "Submit Zone Request"
-- **Updated:** Submit button label changed to "Submit for Approval"
-- **Updated:** Circle preview color changed from red to amber (pending color)
-- **Updated:** Pin color changed from red to amber
-- **Updated:** Success snackbar message updated to "Request submitted — awaiting admin approval"
-- **Removed:** Direct dependency on `RestrictedAreasProvider` and `FirebaseAuth` — now reads official info from `AuthProvider.appUser`
-- **Fixed:** `const AndroidSettings` error — removed erroneous `const` keyword
-
-#### Step 7.14 — FirestoreService additions
-- **Added:** `submitZoneRequest({name, latitude, longitude, radius, barangayId, barangayName, submittedByUid, remarks})` — writes new doc with `status: "pending"` and `FieldValue.serverTimestamp()`
-- **Added:** `streamMyRequests(uid)` — streams all areas where `submitted_by_uid == uid`, ordered by `created_at` descending
-- **Added:** `streamMyRequestStats(uid)` — derives `{total, pending, approved, rejected}` counts from `streamMyRequests`
+- **Updated:** Now submits as `status: "pending"` via `submitZoneRequest()` instead of writing directly as approved
 
 #### Step 7.16 — My Requests (`lib/screens/barangay/barangay_my_requests_screen.dart`)
-- **Replaced:** Placeholder with 3-tab screen (Pending / Approved / Rejected)
-- **Added:** `TabController` with `SingleTickerProviderStateMixin`
-- **Added:** Single `streamMyRequests(uid)` stream split into 3 filtered lists fed into `TabBarView`
-- **Added:** `_RequestCard` — shows name, radius, status badge; rejected cards show rejection reason in a red info box
-- **Added:** Empty state per tab with appropriate message
+- **Added:** 3-tab screen — Pending / Approved / Rejected; rejected cards show rejection reason
 
 ---
 
 ### ✅ Completed Earlier (Steps 7.1–7.7 + 7.12)
 
 #### 1. New Model — `AppUser` (`lib/models/app_user.dart`)
-- **Added:** New file — uid, name, email, role, barangayId, barangayName, isActive, createdAt, createdBy
-- **Added:** Convenience getters: `isSuperAdmin`, `isBarangayOfficial`, `isRider`
+- **Added:** uid, name, email, role, barangayId, barangayName, isActive, createdAt, createdBy
+- **Added:** `isSuperAdmin`, `isBarangayOfficial`, `isRider` convenience getters
 - **Added:** `fromMap()` and `toMap()` for Firestore serialization
 
 #### 2. Updated `RestrictedArea` Model (`lib/models/restricted_area.dart`)
-- **Added:** `status`, `barangayId`, `submittedByUid`, `remarks`, `rejectionReason`, `approvedAt`, `approvedByUid` fields (all nullable, status defaults to `"approved"` for backward compat)
-- **Kept:** All existing fields + Haversine `containsPoint()` untouched
+- **Added:** `status`, `barangayId`, `submittedByUid`, `remarks`, `rejectionReason`, `approvedAt`, `approvedByUid` fields
 
-#### 3–12. (See previous session entries above — Steps 7.1–7.7 + 7.12 details unchanged)
+#### 3–12. Steps 7.1–7.7 + 7.12 — See previous entries
 
 ---
 
@@ -180,19 +170,19 @@ lib/
 │   │   ├── map_screen.dart
 │   │   └── profile_screen.dart
 │   ├── admin/
-│   │   ├── admin_navigation_screen.dart    ✅ live
-│   │   ├── admin_home_screen.dart          ✅ live (7.8)
-│   │   ├── admin_request_inbox_screen.dart ✅ live (7.9)
-│   │   ├── admin_request_detail_screen.dart ✅ NEW (7.9)
+│   │   ├── admin_navigation_screen.dart       ✅ live
+│   │   ├── admin_home_screen.dart             ✅ live (7.8)
+│   │   ├── admin_request_inbox_screen.dart    ✅ live (7.9)
+│   │   ├── admin_request_detail_screen.dart   ✅ live (7.9 + patched)
 │   │   ├── admin_manage_officials_screen.dart ✅ live (7.10)
-│   │   ├── admin_create_official_screen.dart  ✅ NEW (7.10)
-│   │   └── admin_global_map_screen.dart    ✅ live (7.11)
+│   │   ├── admin_create_official_screen.dart  ✅ live (7.10)
+│   │   └── admin_global_map_screen.dart       ✅ live (7.11 + patched)
 │   └── barangay/
-│       ├── barangay_navigation_screen.dart ✅ live
-│       ├── barangay_home_screen.dart       ✅ live (7.13)
-│       ├── barangay_submit_request_screen.dart ✅ live (7.14)
-│       ├── barangay_my_requests_screen.dart    ✅ live (7.16)
-│       └── barangay_profile_screen.dart    ⏳ skeleton
+│       ├── barangay_navigation_screen.dart    ✅ live
+│       ├── barangay_home_screen.dart          ✅ live (7.13)
+│       ├── barangay_submit_request_screen.dart ✅ live (7.14 + patched)
+│       ├── barangay_my_requests_screen.dart   ✅ live (7.16)
+│       └── barangay_profile_screen.dart       ⏳ skeleton
 └── utils/
     ├── app_colors.dart
     ├── app_text_styles.dart
@@ -211,28 +201,24 @@ lib/
 
 ---
 
-### 🔜 Next Phase — Phase 7 Completion + Phase 8
+### 🔜 Next Phase — Phase 8: Core BLE Automation
 
-**Immediate next steps (Phase 7 tail end):**
-1. Step 7.17 — Notifications screen (`barangay_notifications_screen.dart`) + bell icon wired to `barangay_navigation_screen.dart`
-2. Step 7.18 — Write `/notifications` Firestore docs when admin approves or rejects a request
-3. Step 7.19 — Tighten Firestore security rules
-4. Step 7.4 — Seed Super Admin manually in Firebase console
+**Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
 
-**After Phase 7 is complete → Phase 8: Core BLE Automation**
-> ⏸️ Currently blocked on ESP32 BLE UUIDs from hardware team.
-- Wire `exhaust_provider.dart` to send BLE `CLOSE` command on geofence entry
-- Send BLE `OPEN` command on geofence exit
-- Log auto-closure events to Firestore
-- Test end-to-end: rider enters zone → BLE fires → valve closes
+| Task | Notes |
+|------|-------|
+| Obtain ESP32 Service UUID + Characteristic UUID | From hardware team |
+| Define OPEN/CLOSE byte command protocol | Agree with hardware team |
+| Wire `ExhaustProvider` — send `CLOSE` on geofence entry | Uses existing Haversine check |
+| Wire `ExhaustProvider` — send `OPEN` on geofence exit | |
+| Log auto-closure events to Firestore | For audit trail |
+| End-to-end test on device | Rider enters zone → BLE fires → valve closes |
 
 ---
 
 ## [0.6.1] - Phase 6 Patches & Background GPS
 
 **Status:** ✅ COMPLETED — March 5, 2026
-
-*(No changes — see previous entries)*
 
 ---
 
@@ -284,7 +270,7 @@ lib/
 | 0.5.0 | GPS | ✅ Complete | Feb 17, 2026 |
 | 0.6.0 | Map | ✅ Complete | Feb 17, 2026 |
 | 0.6.1 | Patches & Background GPS | ✅ Complete | Mar 5, 2026 |
-| **0.7.0** | **Multi-Role System** | **🔄 ~80% of phase done** | **Mar 2026** |
+| **0.7.0** | **Multi-Role System** | **🔄 ~90% of phase done** | **Mar 2026** |
 | 0.8.0 | Core Automation (BLE) | ⏸️ Blocked on ESP32 UUIDs | TBD |
 
 ---

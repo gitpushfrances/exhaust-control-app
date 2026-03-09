@@ -6,14 +6,13 @@
 
 ---
 
-## 🎯 Overall Progress: ~75% Complete
+## 🎯 Overall Progress: ~80% Complete
 
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
-> Original rider-only scope was 90% complete. Role expansion reset overall to ~55%.
-> Phase 7 is now ~80% done — all major screens built, only notifications + security rules remain.
+> Phase 7 is now ~90% done — all major screens built and working end-to-end. Only notifications + security rules remain.
 
 ```
-[████████████████████████░░░░░░░░] 75%
+[██████████████████████████░░░░░░] 80%
 ```
 
 ### Scope Breakdown:
@@ -21,8 +20,9 @@
 |-------|----------|-------|
 | Rider functionality | ~95% | All rider screens done, zone management removed ✅ |
 | Phase 7 foundation (models, routing, structure) | 100% | Steps 7.1–7.7, 7.12 done ✅ |
-| Super Admin screens | ~95% | Dashboard, Inbox, Detail, Officials, Create Official, Global Map all live ✅ |
-| Barangay Official screens | ~75% | Home, Submit, My Requests done; Notifications + profile pending |
+| Super Admin screens | 100% | Dashboard, Inbox, Detail, Officials, Create Official, Global Map all live ✅ |
+| Barangay Official screens | ~85% | Home, Submit, My Requests done and working; Notifications + profile pending |
+| End-to-end flow | ✅ Working | Submit → Admin inbox → Approve/Reject → Rider map update — full flow verified |
 | Phase 8 BLE Automation | 0% | Blocked on ESP32 UUIDs |
 
 ---
@@ -31,14 +31,14 @@
 
 ---
 
-### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~80% of phase complete)
+### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~90% of phase complete)
 
 **Status:** 🔄 IN PROGRESS
 **Date Started:** March 2026
 
 #### Progress:
 ```
-[█████████████████████████░░░░░░░] ~80% of phase
+[████████████████████████████░░░░] ~90% of phase
 ```
 
 #### Step Checklist:
@@ -73,68 +73,46 @@
 
 ---
 
-### What Was Done This Session (Steps 7.8–7.16)
+### ✅ What Was Done This Session — Patches & Fixes (March 9, 2026)
+
+| File / Area | Change | Type |
+|-------------|--------|------|
+| `lib/models/restricted_area.dart` | Fixed `fromMap()` — handles Firestore Timestamp, DateTime, and String for date fields; fixed field key `created_at` vs `createdAt` | 🔧 Fix |
+| Firebase Console — Indexes | Created 3 composite indexes: `submitted_by_uid+created_at`, `status+created_at`, `status+approved_at` | 🔧 Fix |
+| Firebase Console — Data | Deleted 3 legacy documents with wrong schema (missing `status`, `submitted_by_uid`) | 🔧 Fix |
+| `lib/screens/admin/admin_request_detail_screen.dart` | Converted to `StatefulWidget`; added `_isProcessing` loading state; disabled buttons during write; added `mounted` guards; extracted all data to `initState()` | 🔧 Fix |
+| `lib/screens/admin/admin_global_map_screen.dart` | Added live location stream (8s interval), blue dot marker, recenter FAB | ✏️ Updated |
+| `lib/screens/barangay/barangay_submit_request_screen.dart` | Added live location stream (4s interval), blue dot marker, recenter FAB, fixed map widget wrapped in Stack | ✏️ Updated |
+| `lib/screens/rider/map_screen.dart` | Confirmed working — already had live location stream and recenter | ✅ Verified |
+| `lib/screens/` root | Deleted ghost `main_navigation_screen.dart` and `profile_screen.dart` — restored by git, caused duplicate errors | 🔧 Fix |
+
+#### Bugs Fixed This Session
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Rider map not showing approved zones | `fromMap()` crashed on Firestore Timestamp — objects silently dropped | Added Timestamp-aware date parser in `fromMap()` |
+| Barangay home + My Requests showing empty | Missing Firestore composite indexes — `where + orderBy` silently returns nothing | Created 3 composite indexes in Firebase Console |
+| Admin inbox showing empty | Same missing index issue (`status + created_at`) | Same fix above |
+| Old test documents not matching new schema | Legacy docs written by old screen — missing `status`, `submitted_by_uid` | Deleted all 3 from Firebase Console |
+| Admin approve/reject — potential black screen on slow connection | `StatelessWidget` with no loading state, multiple tap possible | Converted to `StatefulWidget` with `_isProcessing` guard |
+| Admin + Barangay maps hardcoded to Cebu | No location stream wired to those screens | Added `_startLocationStream()` to both |
+
+---
+
+### ✅ What Was Done Previously (Steps 7.8–7.16)
 
 | File | Change | Type |
 |------|--------|------|
 | `lib/screens/admin/admin_home_screen.dart` | Full dashboard — 4 live stat cards + recent activity feed | ✏️ Updated |
 | `lib/screens/admin/admin_request_inbox_screen.dart` | Full pending requests list with cards + navigation to detail | ✏️ Updated |
-| `lib/screens/admin/admin_request_detail_screen.dart` | NEW — map preview, info card, approve + reject (with reason) flow | ➕ New |
+| `lib/screens/admin/admin_request_detail_screen.dart` | Map preview, info card, approve + reject (with reason) flow | ➕ New |
 | `lib/screens/admin/admin_manage_officials_screen.dart` | Full officials list with active/inactive filter + deactivate/reactivate | ✏️ Updated |
-| `lib/screens/admin/admin_create_official_screen.dart` | NEW — creates Firebase Auth account + Firestore user doc for official | ➕ New |
-| `lib/screens/admin/admin_navigation_screen.dart` | Added `_AdminNavigationState` implement + `jumpTo()` for stat card taps | ✏️ Updated |
+| `lib/screens/admin/admin_create_official_screen.dart` | Creates Firebase Auth account + Firestore user doc for official | ➕ New |
+| `lib/screens/admin/admin_navigation_screen.dart` | Added `jumpTo()` for stat card taps | ✏️ Updated |
 | `lib/screens/admin/admin_global_map_screen.dart` | Full OSM map — color-coded circles/pins, filter chips, area bottom sheet, delete | ✏️ Updated |
 | `lib/screens/barangay/barangay_home_screen.dart` | Full dashboard — welcome card, 4 stat cards, recent requests list | ✏️ Updated |
-| `lib/screens/barangay/barangay_submit_request_screen.dart` | Real submission logic — writes `status: pending` to Firestore via official's uid/barangay | ✏️ Updated |
-| `lib/screens/barangay/barangay_my_requests_screen.dart` | 3-tab screen — Pending/Approved/Rejected; rejected cards show rejection reason | ✏️ Updated |
-| `lib/services/firestore_service.dart` | Added 11 new methods across admin stats, request mgmt, officials mgmt, barangay submission | ✏️ Updated |
-
-#### FirestoreService — All New Methods Added This Session
-| Method | Purpose |
-|--------|---------|
-| `streamPendingRequestsCount()` | Live count for admin stat card |
-| `streamApprovedAreasCount()` | Live count for admin stat card |
-| `streamOfficialsCount()` | Live count for admin stat card |
-| `streamRidersCount()` | Live count for admin stat card |
-| `streamRecentActivity()` | Last 5 approved/rejected areas for admin home |
-| `streamAllAreas()` | All areas (all statuses) for admin global map |
-| `streamPendingRequests()` | Pending areas list for admin inbox |
-| `approveRequest()` | Sets status approved + timestamp + admin uid |
-| `rejectRequest()` | Sets status rejected + reason + timestamp |
-| `streamOfficials()` | All barangay officials as AppUser stream |
-| `setOfficialActiveStatus()` | Toggles is_active on official's user doc |
-| `submitZoneRequest()` | Writes new pending zone request from barangay official |
-| `streamMyRequests(uid)` | Official's own submissions stream |
-| `streamMyRequestStats(uid)` | Derived counts (total/pending/approved/rejected) |
-
-#### Bugs Fixed This Session
-| Bug | Fix |
-|-----|-----|
-| `AuthProvider` name clash with `firebase_auth`'s own `AuthProvider` in `admin_create_official_screen.dart` | Aliased both imports: `app_auth` + `fb_auth` |
-| `const AndroidSettings` not a const constructor in `barangay_submit_request_screen.dart` | Removed `const` keyword |
-
----
-
-### What Was Done Previously (Steps 7.1–7.7 + 7.12)
-
-| File | Change | Type |
-|------|--------|------|
-| `lib/models/app_user.dart` | Created — full AppUser model | ➕ New |
-| `lib/models/restricted_area.dart` | Added status + barangay fields | ✏️ Updated |
-| `lib/services/firestore_service.dart` | Added getUser, createUserDoc, streamApprovedAreas | ✏️ Updated |
-| `lib/providers/auth_provider.dart` | Added AppUser, role getter, deactivated block | ✏️ Updated |
-| `lib/providers/restricted_areas_provider.dart` | initialize() takes 0 args, uses stream | ✏️ Updated |
-| `lib/services/auth_service.dart` | Restored after accidental overwrite | 🔧 Fixed |
-| `lib/screens/signup_screen.dart` | Added name field | ✏️ Updated |
-| `lib/main.dart` | AuthWrapper routes by role | ✏️ Updated |
-| `lib/screens/rider/` | All 4 rider screens moved here | 📁 Restructured |
-| `lib/screens/admin/` | Nav screen + 4 skeletons created | ➕ New |
-| `lib/screens/barangay/` | Nav screen + 4 skeletons created | ➕ New |
-| `lib/screens/stats_screen.dart` | Deleted — dead file | ❌ Deleted |
-| `lib/screens/settings_screen.dart` | Deleted — never wired up | ❌ Deleted |
-| `lib/screens/manage_restricted_areas_screen.dart` | Deleted root copy — repurposed to admin | ❌ Deleted |
-| `lib/screens/add_restricted_area_screen.dart` | Deleted root copy — repurposed to barangay | ❌ Deleted |
-| `lib/models/restricted_area.dart.bak` | Deleted — backup file | ❌ Deleted |
+| `lib/screens/barangay/barangay_submit_request_screen.dart` | Real submission logic — writes `status: pending` to Firestore | ✏️ Updated |
+| `lib/screens/barangay/barangay_my_requests_screen.dart` | 3-tab screen — Pending/Approved/Rejected; rejection reason shown | ✏️ Updated |
+| `lib/services/firestore_service.dart` | Added 14 new methods across all roles | ✏️ Updated |
 
 ---
 
@@ -151,8 +129,6 @@
 
 **Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
 
-Once Phase 7 is fully wrapped:
-
 | Task | Notes |
 |------|-------|
 | Obtain ESP32 Service UUID + Characteristic UUID | From hardware team |
@@ -166,7 +142,6 @@ Once Phase 7 is fully wrapped:
 
 ### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete)
 **Status:** ✅ COMPLETE — March 5, 2026
-*(Details unchanged — see CHANGELOGS.md)*
 
 ---
 
@@ -265,8 +240,9 @@ flutter_launcher_icons: ^0.14.1
 | 8 | Role Foundation (models, routing, structure) | ✅ Done | Mar 9 |
 | 9 | Admin Screens Complete | ✅ Done | Mar 9 |
 | 10 | Barangay Screens (core) | ✅ Done | Mar 9 |
-| 11 | Notifications + Security Rules | 🔄 Next | Mar 2026 |
-| 12 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
+| 11 | End-to-end flow verified (Submit → Approve → Rider map) | ✅ Done | Mar 9 |
+| 12 | Notifications + Security Rules | 🔄 Next | Mar 2026 |
+| 13 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
 
 ---
 
@@ -275,7 +251,7 @@ flutter_launcher_icons: ^0.14.1
 | Item | Priority | Notes |
 |------|----------|-------|
 | Debug `print()` throughout codebase | Low | Clean before final demo |
-| `withOpacity` → `withValues()` deprecation warnings (38 instances) | Low | Batch fix before demo |
+| `withOpacity` → `withValues()` deprecation warnings (~35 instances) | Low | Batch fix before demo |
 | `activeColor` → `activeThumbColor` (2 instances) | Low | Minor deprecation |
 | BLE scan not filtered to ESP32 UUID | Medium | Fix in Phase 8 |
 | ESP32 BLE UUIDs not defined | **Blocker** | Needed for Phase 8 |

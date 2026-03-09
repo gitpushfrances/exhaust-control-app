@@ -67,24 +67,36 @@ class RestrictedArea {
   }
 
   factory RestrictedArea.fromMap(Map<String, dynamic> map) {
+    DateTime parseDate(dynamic val) {
+      if (val == null) return DateTime.now();
+      if (val is DateTime) return val;
+      if (val.runtimeType.toString().contains('Timestamp')) return val.toDate();
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    DateTime? parseDateNullable(dynamic val) {
+      if (val == null) return null;
+      if (val is DateTime) return val;
+      if (val.runtimeType.toString().contains('Timestamp')) return val.toDate();
+      if (val is String) return DateTime.tryParse(val);
+      return null;
+    }
+
     return RestrictedArea(
       id: map['id'] ?? '',
       name: map['name'] ?? '',
       latitude: (map['latitude'] ?? 0).toDouble(),
       longitude: (map['longitude'] ?? 0).toDouble(),
       radius: (map['radius'] ?? 100).toDouble(),
-      createdBy: map['createdBy'] ?? '',
-      createdAt: map['createdAt'] != null
-          ? DateTime.parse(map['createdAt'])
-          : DateTime.now(),
+      createdBy: map['created_by'] ?? map['createdBy'] ?? '',
+      createdAt: parseDate(map['created_at'] ?? map['createdAt']),
       status: map['status'] ?? 'approved',
       barangayId: map['barangay_id'],
       submittedByUid: map['submitted_by_uid'],
       remarks: map['remarks'],
       rejectionReason: map['rejection_reason'],
-      approvedAt: map['approved_at'] != null
-          ? DateTime.parse(map['approved_at'])
-          : null,
+      approvedAt: parseDateNullable(map['approved_at']),
       approvedByUid: map['approved_by_uid'],
     );
   }

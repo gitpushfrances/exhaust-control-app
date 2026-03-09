@@ -5,21 +5,42 @@ import 'package:latlong2/latlong.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 
-class AdminRequestDetailScreen extends StatelessWidget {
+class AdminRequestDetailScreen extends StatefulWidget {
   final Map<String, dynamic> data;
   const AdminRequestDetailScreen({super.key, required this.data});
 
   @override
+  State<AdminRequestDetailScreen> createState() =>
+      _AdminRequestDetailScreenState();
+}
+
+class _AdminRequestDetailScreenState extends State<AdminRequestDetailScreen> {
+  bool _isProcessing = false;
+  final FirestoreService _fs = FirestoreService();
+
+  late final String _docId;
+  late final String _name;
+  late final double _lat;
+  late final double _lng;
+  late final double _radius;
+  late final String _barangayId;
+  late final String _remarks;
+
+  @override
+  void initState() {
+    super.initState();
+    _docId = widget.data['doc_id'] ?? '';
+    _name = widget.data['name'] ?? 'Unnamed Area';
+    _lat = (widget.data['latitude'] ?? 0.0).toDouble();
+    _lng = (widget.data['longitude'] ?? 0.0).toDouble();
+    _radius = (widget.data['radius'] ?? 100).toDouble();
+    _barangayId = widget.data['barangay_id'] ?? '—';
+    _remarks = widget.data['remarks'] ?? '';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fs = FirestoreService();
     final adminUid = context.read<AuthProvider>().user?.uid ?? '';
-    final docId = data['doc_id'] ?? '';
-    final name = data['name'] ?? 'Unnamed Area';
-    final lat = (data['latitude'] ?? 0.0).toDouble();
-    final lng = (data['longitude'] ?? 0.0).toDouble();
-    final radius = (data['radius'] ?? 100).toDouble();
-    final barangayId = data['barangay_id'] ?? '—';
-    final remarks = data['remarks'] ?? '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -51,7 +72,7 @@ class AdminRequestDetailScreen extends StatelessWidget {
                 height: 220,
                 child: FlutterMap(
                   options: MapOptions(
-                    initialCenter: LatLng(lat, lng),
+                    initialCenter: LatLng(_lat, _lng),
                     initialZoom: 15,
                     interactionOptions: const InteractionOptions(
                       flags: InteractiveFlag.none,
@@ -67,8 +88,8 @@ class AdminRequestDetailScreen extends StatelessWidget {
                     CircleLayer(
                       circles: [
                         CircleMarker(
-                          point: LatLng(lat, lng),
-                          radius: radius,
+                          point: LatLng(_lat, _lng),
+                          radius: _radius,
                           useRadiusInMeter: true,
                           color: const Color(
                             0xFFEF4444,
@@ -81,7 +102,7 @@ class AdminRequestDetailScreen extends StatelessWidget {
                     MarkerLayer(
                       markers: [
                         Marker(
-                          point: LatLng(lat, lng),
+                          point: LatLng(_lat, _lng),
                           width: 32,
                           height: 32,
                           child: const Icon(
@@ -110,20 +131,20 @@ class AdminRequestDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _InfoRow(label: 'Area Name', value: name),
+                  _InfoRow(label: 'Area Name', value: _name),
                   const Divider(height: 20),
-                  _InfoRow(label: 'Barangay', value: barangayId),
+                  _InfoRow(label: 'Barangay', value: _barangayId),
                   const Divider(height: 20),
                   _InfoRow(
                     label: 'Coordinates',
                     value:
-                        '${lat.toStringAsFixed(5)}, ${lng.toStringAsFixed(5)}',
+                        '${_lat.toStringAsFixed(5)}, ${_lng.toStringAsFixed(5)}',
                   ),
                   const Divider(height: 20),
-                  _InfoRow(label: 'Radius', value: '${radius.toInt()}m'),
-                  if (remarks.isNotEmpty) ...[
+                  _InfoRow(label: 'Radius', value: '${_radius.toInt()}m'),
+                  if (_remarks.isNotEmpty) ...[
                     const Divider(height: 20),
-                    _InfoRow(label: 'Remarks', value: remarks),
+                    _InfoRow(label: 'Remarks', value: _remarks),
                   ],
                 ],
               ),
@@ -136,8 +157,9 @@ class AdminRequestDetailScreen extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () =>
-                        _showRejectDialog(context, fs, docId, adminUid),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _showRejectDialog(context, adminUid),
                     icon: const Icon(Icons.close, color: Color(0xFFEF4444)),
                     label: const Text(
                       'Reject',
@@ -155,8 +177,19 @@ class AdminRequestDetailScreen extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _approve(context, fs, docId, adminUid),
-                    icon: const Icon(Icons.check),
+                    onPressed: _isProcessing
+                        ? null
+                        : () => _approve(context, adminUid),
+                    icon: _isProcessing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.check),
                     label: const Text('Approve'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF10B981),
@@ -175,39 +208,30 @@ class AdminRequestDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _approve(
-    BuildContext context,
-    FirestoreService fs,
-    String docId,
-    String adminUid,
-  ) async {
-    final success = await fs.approveRequest(docId: docId, adminUid: adminUid);
-    if (context.mounted) {
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Zone approved — now live on all rider maps'),
-            backgroundColor: Color(0xFF10B981),
-          ),
-        );
-        Navigator.pop(context);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to approve. Try again.'),
-            backgroundColor: Color(0xFFEF4444),
-          ),
-        );
-      }
+  Future<void> _approve(BuildContext context, String adminUid) async {
+    setState(() => _isProcessing = true);
+    final success = await _fs.approveRequest(docId: _docId, adminUid: adminUid);
+    if (!mounted) return;
+    setState(() => _isProcessing = false);
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Zone approved — now live on all rider maps'),
+          backgroundColor: Color(0xFF10B981),
+        ),
+      );
+      Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to approve. Try again.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
     }
   }
 
-  void _showRejectDialog(
-    BuildContext context,
-    FirestoreService fs,
-    String docId,
-    String adminUid,
-  ) {
+  void _showRejectDialog(BuildContext context, String adminUid) {
     final reasonController = TextEditingController();
     showModalBottomSheet(
       context: context,
@@ -259,21 +283,22 @@ class AdminRequestDetailScreen extends StatelessWidget {
                   final reason = reasonController.text.trim();
                   if (reason.isEmpty) return;
                   Navigator.pop(ctx);
-                  final success = await fs.rejectRequest(
-                    docId: docId,
+                  setState(() => _isProcessing = true);
+                  final success = await _fs.rejectRequest(
+                    docId: _docId,
                     adminUid: adminUid,
                     reason: reason,
                   );
-                  if (context.mounted) {
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Request rejected'),
-                          backgroundColor: Color(0xFFEF4444),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    }
+                  if (!mounted) return;
+                  setState(() => _isProcessing = false);
+                  if (success) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Request rejected'),
+                        backgroundColor: Color(0xFFEF4444),
+                      ),
+                    );
+                    Navigator.pop(context);
                   }
                 },
                 style: ElevatedButton.styleFrom(
