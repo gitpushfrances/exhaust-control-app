@@ -3,6 +3,7 @@ import 'admin_home_screen.dart';
 import 'admin_request_inbox_screen.dart';
 import 'admin_manage_officials_screen.dart';
 import 'admin_global_map_screen.dart';
+import '../shared/shared_profile_screen.dart';
 
 class AdminNavigationScreen extends StatefulWidget {
   const AdminNavigationScreen({super.key});
@@ -21,6 +22,7 @@ class _AdminNavigationScreenState extends State<AdminNavigationScreen> {
       const AdminRequestInboxScreen(),
       const AdminManageOfficialsScreen(),
       const AdminGlobalMapScreen(),
+      const SharedProfileScreen(),
     ];
 
     return Scaffold(
@@ -51,6 +53,11 @@ class _AdminNavigationScreenState extends State<AdminNavigationScreen> {
             icon: Icon(Icons.map_outlined),
             activeIcon: Icon(Icons.map),
             label: 'Map',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
       ),

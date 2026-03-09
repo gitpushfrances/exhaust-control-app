@@ -114,7 +114,7 @@ class AuthWrapper extends StatelessWidget {
         // Role-based routing
         final role = authProvider.role;
 
-        if (role == 'superadmin') {
+        if (role == 'super_admin') {
           return const AdminNavigationScreen();
         } else if (role == 'barangay_official') {
           return const BarangayNavigationScreen();
