@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
+import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/app_user.dart';
@@ -38,14 +39,22 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final adminUid = context.read<app_auth.AuthProvider>().user?.uid ?? '';
+      final adminUser = context.read<app_auth.AuthProvider>().user;
+      final adminUid = adminUser?.uid ?? '';
 
-      // Create Firebase Auth account
-      final cred = await fb_auth.FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: _emailController.text.trim(),
-            password: _passwordController.text,
-          );
+      // Use secondary app to avoid signing out admin
+      final secondaryApp = await Firebase.initializeApp(
+        name: 'secondary',
+        options: Firebase.app().options,
+      );
+      final secondaryAuth = fb_auth.FirebaseAuth.instanceFor(app: secondaryApp);
+
+      final cred = await secondaryAuth.createUserWithEmailAndPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+
+      await secondaryApp.delete();
 
       final uid = cred.user!.uid;
 

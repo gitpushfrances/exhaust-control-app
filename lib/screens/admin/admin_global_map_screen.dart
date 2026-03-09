@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../services/firestore_service.dart';
 
 class AdminGlobalMapScreen extends StatefulWidget {
@@ -13,7 +15,48 @@ class AdminGlobalMapScreen extends StatefulWidget {
 class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
   final FirestoreService _fs = FirestoreService();
   final MapController _mapController = MapController();
-  String _filter = 'all'; // all | approved | pending | rejected
+  String _filter = 'all';
+
+  double _currentLat = 10.3157;
+  double _currentLng = 123.8854;
+  bool _locationReady = false;
+  StreamSubscription<Position>? _positionStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _startLocationStream();
+  }
+
+  @override
+  void dispose() {
+    _positionStream?.cancel();
+    super.dispose();
+  }
+
+  void _startLocationStream() {
+    final locationSettings = AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      intervalDuration: const Duration(seconds: 8),
+      distanceFilter: 5,
+    );
+
+    _positionStream =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (position) {
+            if (!mounted) return;
+            setState(() {
+              _currentLat = position.latitude;
+              _currentLng = position.longitude;
+              if (!_locationReady) {
+                _locationReady = true;
+                _mapController.move(LatLng(_currentLat, _currentLng), 14);
+              }
+            });
+          },
+          onError: (e) {},
+        );
+  } // all | approved | pending | rejected
 
   static const _colors = {
     'approved': Color(0xFF10B981),
@@ -69,17 +112,45 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
               // Map
               FlutterMap(
                 mapController: _mapController,
-                options: const MapOptions(
-                  initialCenter: LatLng(10.3157, 123.8854), // Cebu
-                  initialZoom: 12,
+                options: MapOptions(
+                  initialCenter: LatLng(_currentLat, _currentLng),
+                  initialZoom: 14,
                 ),
                 children: [
                   TileLayer(
                     urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.example.exhaust_controller_app',
                   ),
                   CircleLayer(circles: circles),
-                  MarkerLayer(markers: markers),
+                  MarkerLayer(
+                    markers: [
+                      ...markers,
+                      if (_locationReady)
+                        Marker(
+                          point: LatLng(_currentLat, _currentLng),
+                          width: 40,
+                          height: 40,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF3B82F6,
+                              ).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF3B82F6),
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.my_location,
+                              color: Color(0xFF3B82F6),
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ],
               ),
 
@@ -186,6 +257,23 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                         ),
                       ],
                     ),
+                  ),
+                ),
+              ),
+
+              // Recenter Button
+              Positioned(
+                bottom: 170,
+                right: 16,
+                child: FloatingActionButton.small(
+                  heroTag: 'recenter_admin',
+                  backgroundColor: Colors.white,
+                  elevation: 4,
+                  onPressed: () =>
+                      _mapController.move(LatLng(_currentLat, _currentLng), 14),
+                  child: const Icon(
+                    Icons.my_location,
+                    color: Color(0xFF3B82F6),
                   ),
                 ),
               ),

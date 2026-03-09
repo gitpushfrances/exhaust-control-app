@@ -30,27 +30,43 @@ class _BarangaySubmitRequestScreenState
 
   static const List<double> _radiusOptions = [50, 100, 200, 300, 500];
 
+  StreamSubscription<Position>? _positionStream;
+  double _currentLat = 10.3157;
+  double _currentLng = 123.8854;
+
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 400), _fetchInitialLocation);
+    _startLocationStream();
+  }
+
+  void _startLocationStream() {
+    final locationSettings = AndroidSettings(
+      accuracy: LocationAccuracy.high,
+      intervalDuration: const Duration(seconds: 4),
+      distanceFilter: 5,
+    );
+
+    _positionStream =
+        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
+          (position) {
+            if (!mounted) return;
+            setState(() {
+              _currentLat = position.latitude;
+              _currentLng = position.longitude;
+            });
+            _mapController.move(LatLng(_currentLat, _currentLng), 16);
+          },
+          onError: (e) {},
+        );
   }
 
   @override
   void dispose() {
+    _positionStream?.cancel();
     _nameController.dispose();
     _remarksController.dispose();
     super.dispose();
-  }
-
-  Future<void> _fetchInitialLocation() async {
-    try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: AndroidSettings(accuracy: LocationAccuracy.high),
-      );
-      if (!mounted) return;
-      _mapController.move(LatLng(position.latitude, position.longitude), 15.0);
-    } catch (_) {}
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
@@ -178,6 +194,7 @@ class _BarangaySubmitRequestScreenState
       ),
       body: Column(
         children: [
+          // Info banner
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -199,51 +216,110 @@ class _BarangaySubmitRequestScreenState
               ],
             ),
           ),
+
+          // Map
           SizedBox(
             height: 300,
-            child: FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: const LatLng(10.3157, 123.8854),
-                initialZoom: 14.0,
-                onTap: _onMapTap,
-              ),
+            child: Stack(
               children: [
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                ),
-                if (_selectedPoint != null) ...[
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: _selectedPoint!,
-                        radius: _radius,
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
-                        borderColor: const Color(0xFFF59E0B),
-                        borderStrokeWidth: 2,
-                        useRadiusInMeter: true,
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: LatLng(_currentLat, _currentLng),
+                    initialZoom: 14.0,
+                    onTap: _onMapTap,
+                  ),
+                  children: [
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName:
+                          'com.example.exhaust_controller_app',
+                    ),
+                    // Selected zone circle + pin
+                    if (_selectedPoint != null) ...[
+                      CircleLayer(
+                        circles: [
+                          CircleMarker(
+                            point: _selectedPoint!,
+                            radius: _radius,
+                            color: const Color(
+                              0xFFF59E0B,
+                            ).withValues(alpha: 0.2),
+                            borderColor: const Color(0xFFF59E0B),
+                            borderStrokeWidth: 2,
+                            useRadiusInMeter: true,
+                          ),
+                        ],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: _selectedPoint!,
+                            width: 40,
+                            height: 48,
+                            alignment: Alignment.topCenter,
+                            child: const Icon(
+                              Icons.location_pin,
+                              color: Color(0xFFF59E0B),
+                              size: 40,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _selectedPoint!,
-                        width: 40,
-                        height: 48,
-                        alignment: Alignment.topCenter,
-                        child: const Icon(
-                          Icons.location_pin,
-                          color: Color(0xFFF59E0B),
-                          size: 40,
+                    // Current location blue dot
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(_currentLat, _currentLng),
+                          width: 40,
+                          height: 40,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(
+                                0xFF3B82F6,
+                              ).withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF3B82F6),
+                                width: 2,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.my_location,
+                              color: Color(0xFF3B82F6),
+                              size: 20,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ],
+                ),
+                // Recenter button
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: FloatingActionButton.small(
+                    heroTag: 'recenter_barangay',
+                    backgroundColor: Colors.white,
+                    elevation: 4,
+                    onPressed: () => _mapController.move(
+                      LatLng(_currentLat, _currentLng),
+                      16,
+                    ),
+                    child: const Icon(
+                      Icons.my_location,
+                      color: Color(0xFF3B82F6),
+                    ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
+
+          // Form
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),

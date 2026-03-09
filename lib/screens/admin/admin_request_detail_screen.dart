@@ -61,6 +61,8 @@ class AdminRequestDetailScreen extends StatelessWidget {
                     TileLayer(
                       urlTemplate:
                           'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName:
+                          'com.example.exhaust_controller_app',
                     ),
                     CircleLayer(
                       circles: [
