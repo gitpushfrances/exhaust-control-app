@@ -14,24 +14,24 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 
 ---
 
-### 📋 Implementation Steps (in order)
+### 📋 Implementation Steps
 
 | Step | Task | Risk | Status |
 |------|------|------|--------|
-| 7.1 | Update `RestrictedArea` model — add `status`, `barangay_id`, `submitted_by_uid`, `remarks`, `rejection_reason`, `approved_at`, `approved_by_uid` fields with defaults | None | ⏳ Pending |
-| 7.2 | Update Sign Up screen — write `role: "rider"` on register | None | ⏳ Pending |
-| 7.3 | Update `AuthWrapper` — role-based routing to 3 navigation screens | Low | ⏳ Pending |
+| 7.1 | Update `RestrictedArea` model — add `status`, `barangay_id`, `submitted_by_uid`, `remarks`, `rejection_reason`, `approved_at`, `approved_by_uid` fields with defaults | None | ✅ Done |
+| 7.2 | Update Sign Up screen — write `role: "rider"` on register | None | ✅ Done |
+| 7.3 | Update `AuthWrapper` — role-based routing to 3 navigation screens | Low | ✅ Done |
 | 7.4 | Seed Super Admin in Firestore console manually | None | ⏳ Pending |
-| 7.5 | Update `streamRestrictedAreas()` — add `.where("status", isEqualTo: "approved")` filter | Low | ⏳ Pending |
-| 7.6 | Remove Add Restricted Area button from rider UI (Dashboard home + disconnected state) | None | ⏳ Pending |
-| 7.7 | Create `AdminNavigationScreen` + 4 skeleton screens | None | ⏳ Pending |
+| 7.5 | Update `streamRestrictedAreas()` — replaced with `streamApprovedAreas()` filter `status == "approved"` | Low | ✅ Done |
+| 7.6 | Remove Add Restricted Area button from rider UI (map screen + profile screen) | None | ✅ Done |
+| 7.7 | Create `AdminNavigationScreen` + 4 skeleton screens | None | ✅ Done |
 | 7.8 | Build Admin Home Dashboard (stat cards, recent activity feed) | None | ⏳ Pending |
 | 7.9 | Build Request Inbox + Detail screen + Approve/Reject flow | None | ⏳ Pending |
 | 7.10 | Build Manage Officials + Create Official form | None | ⏳ Pending |
 | 7.11 | Build Admin Global Map with filter chips + Add Zone directly | None | ⏳ Pending |
-| 7.12 | Create `BarangayNavigationScreen` + 4 skeleton screens | None | ⏳ Pending |
+| 7.12 | Create `BarangayNavigationScreen` + 4 skeleton screens | None | ✅ Done |
 | 7.13 | Build Barangay Home Dashboard (zone stats, request summary, bell icon) | None | ⏳ Pending |
-| 7.14 | Build Submit Request screen (extend existing add area logic, new file) | None | ⏳ Pending |
+| 7.14 | Build Submit Request screen (extend existing map-tap logic) | None | ⏳ Pending |
 | 7.15 | Implement barangay boundary check — Option A circle (Haversine reuse) | None | ⏳ Pending |
 | 7.16 | Build My Requests screen — 3 inner tabs (Pending / Approved / Rejected) | None | ⏳ Pending |
 | 7.17 | Build Notifications screen + bell icon on Barangay Home | None | ⏳ Pending |
@@ -41,46 +41,139 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 
 ---
 
-### 🗂️ New Files (planned)
-```
-lib/
-├── screens/
-│   ├── admin/
-│   │   ├── admin_navigation_screen.dart
-│   │   ├── admin_home_screen.dart
-│   │   ├── admin_request_inbox_screen.dart
-│   │   ├── admin_request_detail_screen.dart
-│   │   ├── admin_manage_officials_screen.dart
-│   │   ├── admin_create_official_screen.dart
-│   │   └── admin_global_map_screen.dart
-│   └── barangay/
-│       ├── barangay_navigation_screen.dart
-│       ├── barangay_home_screen.dart
-│       ├── barangay_submit_request_screen.dart
-│       ├── barangay_my_requests_screen.dart
-│       └── barangay_notifications_screen.dart
-```
+### ✅ Completed So Far (Steps 7.1–7.7 + 7.12)
 
-### 🗂️ Files Modified (planned)
+#### 1. New Model — `AppUser` (`lib/models/app_user.dart`)
+- **Added:** New file — uid, name, email, role, barangayId, barangayName, isActive, createdAt, createdBy
+- **Added:** Convenience getters: `isSuperAdmin`, `isBarangayOfficial`, `isRider`
+- **Added:** `fromMap()` and `toMap()` for Firestore serialization
+
+#### 2. Updated `RestrictedArea` Model (`lib/models/restricted_area.dart`)
+- **Added:** `status` field — `"pending"` | `"approved"` | `"rejected"`, defaults to `"approved"` for backward compatibility with old docs
+- **Added:** `barangayId`, `submittedByUid`, `remarks`, `rejectionReason`, `approvedAt`, `approvedByUid` fields (all nullable)
+- **Kept:** All existing fields unchanged — `id`, `name`, `latitude`, `longitude`, `radius`, `createdBy`, `createdAt`
+- **Kept:** Haversine `containsPoint()` logic untouched
+
+#### 3. Updated `FirestoreService` (`lib/services/firestore_service.dart`)
+- **Added:** `getUser(uid)` — reads `/users/{uid}` doc, returns `AppUser?`
+- **Added:** `createUserDoc(AppUser)` — writes new user document to Firestore
+- **Added:** `streamApprovedAreas()` — real-time stream filtered by `status == "approved"` (replaces old `getRestrictedAreas`)
+- **Removed:** `getRestrictedAreas(userEmail)` — old method that loaded all areas filtered by `createdBy` email
+- **Removed:** `streamRestrictedAreas()` — old unfiltered stream
+- **Removed:** `deleteRestrictedArea(areaId, userEmail)` — replaced with `deleteRestrictedArea(docId)` (no email needed)
+
+#### 4. Updated `AuthProvider` (`lib/providers/auth_provider.dart`)
+- **Added:** `AppUser? _appUser` field — holds the Firestore user document
+- **Added:** `appUser` getter — exposes full `AppUser` object
+- **Added:** `role` getter — exposes `_appUser?.role` string
+- **Added:** `_loadAppUser(uid)` — reads Firestore user doc after every login/auth state change
+- **Added:** Deactivated account block — if `isActive == false`, login rejected with message `"Account deactivated. Contact administrator."`
+- **Updated:** `signUp()` — now requires `name` parameter, creates Firestore user doc with `role: "rider"` on register
+- **Updated:** `signIn()` — calls `_loadAppUser()` after Firebase Auth success
+- **Removed:** Old `signUp()` that only called Firebase Auth without writing to Firestore
+
+#### 5. Updated `SignupScreen` (`lib/screens/signup_screen.dart`)
+- **Added:** `_nameController` — new text field for Full Name
+- **Added:** Full Name field in form UI (above Email field)
+- **Updated:** `signUp()` call now passes `name: _nameController.text`
+- **Added:** `_nameController.dispose()` in `dispose()`
+
+#### 6. Updated `RestrictedAreasProvider` (`lib/providers/restricted_areas_provider.dart`)
+- **Updated:** `initialize()` — now takes zero arguments (old version required `userEmail`)
+- **Updated:** Internally uses `streamApprovedAreas()` stream instead of `loadRestrictedAreas()`
+- **Removed:** `_userEmail` field — no longer needed
+- **Removed:** `loadRestrictedAreas()` — replaced by real-time stream
+- **Kept:** `addRestrictedArea()`, `deleteRestrictedArea()`, `isPointInRestrictedArea()`, `getRestrictedAreaAtPoint()`, `clear()`
+
+#### 7. Updated `AuthService` (`lib/services/auth_service.dart`)
+- **Fixed:** File was accidentally overwritten with `auth_provider.dart` content during session — restored to correct implementation
+- **Kept:** `signIn()`, `signUp()`, `signOut()`, `currentUser`, `authStateChanges`, `_handleAuthException()`
+
+#### 8. Updated `main.dart`
+- **Updated:** `AuthWrapper` — now routes by role: `superadmin` → `AdminNavigationScreen`, `barangay_official` → `BarangayNavigationScreen`, `rider` → `MainNavigationScreen`
+- **Added:** Imports for `AdminNavigationScreen`, `BarangayNavigationScreen`
+- **Kept:** All existing theme, providers, and route definitions
+
+#### 9. Folder Restructure
+- **Created:** `lib/screens/rider/` — all rider screens moved here
+- **Moved:** `dashboard_screen.dart` → `lib/screens/rider/`
+- **Moved:** `map_screen.dart` → `lib/screens/rider/`
+- **Moved:** `profile_screen.dart` → `lib/screens/rider/`
+- **Moved:** `main_navigation_screen.dart` → `lib/screens/rider/`
+- **Updated:** All moved files — import paths updated from `../` to `../../`
+- **Created:** `lib/screens/admin/` — new folder for Admin role
+- **Created:** `lib/screens/barangay/` — new folder for Barangay Official role
+- **Deleted:** `lib/screens/stats_screen.dart` — removed in Phase 6.1, dead file
+- **Deleted:** `lib/screens/settings_screen.dart` — never wired up, dead file
+
+#### 10. Admin Skeleton Screens (`lib/screens/admin/`)
+- **Created:** `admin_navigation_screen.dart` — 4-tab bottom nav (Home, Requests, Officials, Map)
+- **Created:** `admin_home_screen.dart` — placeholder "coming soon"
+- **Created:** `admin_request_inbox_screen.dart` — placeholder "coming soon"
+- **Created:** `admin_manage_officials_screen.dart` — placeholder "coming soon"
+- **Created:** `admin_global_map_screen.dart` — repurposed from old `manage_restricted_areas_screen.dart`; lists all approved zones with delete, class renamed to `AdminGlobalMapScreen`, FAB shows "coming soon" snackbar, Add Zone screen navigation removed
+
+#### 11. Barangay Skeleton Screens (`lib/screens/barangay/`)
+- **Created:** `barangay_navigation_screen.dart` — 4-tab bottom nav (Home, Submit, Requests, Profile)
+- **Created:** `barangay_home_screen.dart` — placeholder "coming soon"
+- **Created:** `barangay_submit_request_screen.dart` — repurposed from old `add_restricted_area_screen.dart`; class renamed to `BarangaySubmitRequestScreen`, full map-tap logic preserved (will be extended in Step 7.14)
+- **Created:** `barangay_my_requests_screen.dart` — placeholder "coming soon"
+- **Created:** `barangay_profile_screen.dart` — placeholder "coming soon"
+
+#### 12. Rider UI Cleanup
+- **Removed:** "Manage Areas" `IconButton` from `map_screen.dart` AppBar — riders cannot manage zones per system flow
+- **Removed:** `manage_restricted_areas_screen.dart` import from `profile_screen.dart`
+- **Removed:** "Restricted Areas" settings item from `profile_screen.dart` — riders have no zone management access
+
+---
+
+### 🗂️ Final Folder Structure (after restructure)
 ```
 lib/
-├── models/restricted_area.dart          — model update
-├── screens/auth/sign_up_screen.dart     — write role: "rider"
-├── screens/auth/auth_wrapper.dart       — role routing
-├── screens/home_screen.dart             — remove add area button
-├── services/firestore_service.dart      — status filter on streamRestrictedAreas
-└── utils/auth_provider.dart             — read role + is_active on login
+├── main.dart
+├── models/
+│   ├── app_user.dart               ← NEW
+│   └── restricted_area.dart        ← UPDATED
+├── providers/
+│   ├── auth_provider.dart          ← UPDATED
+│   ├── bluetooth_provider.dart     ← untouched
+│   ├── exhaust_provider.dart       ← untouched
+│   └── restricted_areas_provider.dart ← UPDATED
+├── services/
+│   ├── auth_service.dart           ← RESTORED (was overwritten by mistake)
+│   └── firestore_service.dart      ← UPDATED
+├── screens/
+│   ├── login_screen.dart           ← untouched
+│   ├── signup_screen.dart          ← UPDATED
+│   ├── splash_screen.dart          ← untouched
+│   ├── rider/
+│   │   ├── main_navigation_screen.dart   ← MOVED + imports fixed
+│   │   ├── dashboard_screen.dart         ← MOVED + imports fixed
+│   │   ├── map_screen.dart               ← MOVED + imports fixed + manage button removed
+│   │   └── profile_screen.dart           ← MOVED + imports fixed + manage item removed
+│   ├── admin/
+│   │   ├── admin_navigation_screen.dart  ← NEW
+│   │   ├── admin_home_screen.dart        ← NEW (skeleton)
+│   │   ├── admin_request_inbox_screen.dart ← NEW (skeleton)
+│   │   ├── admin_manage_officials_screen.dart ← NEW (skeleton)
+│   │   └── admin_global_map_screen.dart  ← REPURPOSED + renamed
+│   └── barangay/
+│       ├── barangay_navigation_screen.dart     ← NEW
+│       ├── barangay_home_screen.dart           ← NEW (skeleton)
+│       ├── barangay_submit_request_screen.dart ← REPURPOSED + renamed
+│       ├── barangay_my_requests_screen.dart    ← NEW (skeleton)
+│       └── barangay_profile_screen.dart        ← NEW (skeleton)
+└── utils/
+    ├── app_colors.dart             ← untouched
+    ├── app_text_styles.dart        ← untouched
+    └── permission_handler.dart     ← untouched
 ```
 
 ---
 
-### 🔒 Firestore Security Rules (Step 7.19 — do last)
-```
-/users/{uid}         — read/write own doc only OR superadmin
-/barangays/{id}      — read: all authenticated | write: superadmin only
-/restricted_areas/{id} — complex per-role rules (see flow doc)
-/notifications/{id}  — read: recipient only | write: any authenticated
-```
+### ⚠️ Known Issues / Still Pending Before Building New Screens
+- [ ] Step 7.4 — Super Admin not yet seeded in Firestore console
+- [ ] `flutter analyze` — confirm zero errors after all import fixes and git cleanup
 
 ---
 
@@ -124,55 +217,25 @@ Removed Stats tab, rewrote restricted area creation with map-tap UI, fixed GPS t
 - **Files Modified:** `map_screen.dart`, `add_restricted_area_screen.dart`
 - **Before:** Raw lat/lng coordinates displayed
 - **After:** Street → Barangay → Municipality → Province → Region
-- Example: `"Maharlika Highway, Brgy. Maybocog, Guiuan, Eastern Samar, Eastern Visayas"`
 
 #### 5. Animation Render Storm — Fixed
-- **Root cause:** `AnimationController` + `_mapController.move()` called on every animation tick → GPU frame overflow → device killed
-- **Fix:** Removed `AnimationController`, `_latAnim`, `_lngAnim`, `SingleTickerProviderStateMixin` entirely from both `map_screen.dart` and `add_restricted_area_screen.dart`
-- Replaced with direct `_mapController.move()` call — stable, no render storm
+- **Root cause:** `AnimationController` + `_mapController.move()` called on every animation tick
+- **Fix:** Removed `AnimationController`, `_latAnim`, `_lngAnim`, `SingleTickerProviderStateMixin` entirely
+- Replaced with direct `_mapController.move()` call
 
 #### 6. Firestore — Database Created + Rules Fixed
 - Created Firestore database (Standard edition, `asia-southeast1`, production mode)
-- **Initial rules too strict** — only allowed `users/{userId}` path, blocked `restricted_areas` writes
-- **Fixed rules:**
-```
-allow read, write: if request.auth != null;
-```
-- All authenticated users can read/write — appropriate for capstone scope
+- **Fixed rules:** `allow read, write: if request.auth != null;`
 
 #### 7. Firestore — `isActive` Filter Bug Fixed
 - **File Modified:** `lib/services/firestore_service.dart`
-- **Bug:** `getRestrictedAreas()` and `streamRestrictedAreas()` filtered `.where('isActive', isEqualTo: true)` but saved documents never include `isActive` field → query returned empty list
+- **Bug:** `.where('isActive', isEqualTo: true)` on docs that never had `isActive` → empty list
 - **Fix:** Removed `isActive` filter from both methods
 
 #### 8. Provider Initialization Bug Fixed
 - **File Modified:** `lib/screens/main_navigation_screen.dart`
-- **Bug:** `RestrictedAreasProvider.initialize()` was never called — `_userEmail` stayed `null` so `loadRestrictedAreas()` returned immediately on every call
-- **Fix:** Added `initState` with `addPostFrameCallback` to call `initialize()` with logged-in user's email after first frame
-- Added imports: `provider`, `AuthProvider`, `RestrictedAreasProvider`
-
----
-
-### 📦 AndroidManifest.xml Additions
-```xml
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-<uses-permission android:name="android.permission.WAKE_LOCK" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-```
-Plus `GeolocatorService` service declaration with `foregroundServiceType="location"`.
-
----
-
-### 🐛 Bugs Fixed (7 total)
-
-1. ✅ **Background GPS dies** — Timer → getPositionStream + foreground service
-2. ✅ **Animation render storm** — AnimationController removed entirely
-3. ✅ **Firestore PERMISSION_DENIED** — Security rules too restrictive
-4. ✅ **Areas never load** — `isActive` filter removed from Firestore query
-5. ✅ **Provider never initialized** — `initialize()` added to `MainNavigationScreen.initState`
-6. ✅ **Add area opens at wrong location** — fetches real GPS on init
-7. ✅ **Add area hangs on tap** — geocoding moved to background async, pin drops instantly
+- **Bug:** `RestrictedAreasProvider.initialize()` was never called
+- **Fix:** Added `initState` with `addPostFrameCallback`
 
 ---
 
@@ -187,279 +250,80 @@ Plus `GeolocatorService` service declaration with `foregroundServiceType="locati
 
 ---
 
-### 🎯 Impact on Project Progress
-- **Overall Project (original scope):** 85% → **90%** (+5%)
-- **Remaining:** Phase 7 (BLE automation) — blocked on ESP32 UUIDs from hardware team
-
----
-
 ## [0.6.0] - Phase 5 & 6: GPS, Map Integration & Geocoding
 
-**Status:** ✅ COMPLETED
-**Date Completed:** February 17, 2026
+**Status:** ✅ COMPLETED — February 17, 2026
 
-### 🎯 What This Phase Achieved:
-Replaced the static placeholder map with a fully functional OpenStreetMap integration using `flutter_map`. Implemented real-time GPS tracking that updates every 8 seconds, reverse geocoding for human-readable addresses, and live location syncing between the Map screen and Dashboard. Removed all hardcoded coordinates and static UI elements.
-
----
-
-### ✅ Features Added
-
-#### 1. Real OpenStreetMap Integration
-- **File Modified:** `lib/screens/map_screen.dart`
-- Full rewrite — placeholder grid/mock map removed entirely
-- Real OSM tiles via `TileLayer` with `flutter_map`
-- Pinch to zoom, drag to pan — native map controls
-- Zoom range: 5.0 (country) to 18.0 (street level)
-- `MapController` for programmatic map control
-- Center-on-user button snaps map back to current location
-- Restricted area circles drawn on map as red overlays
-- Motorcycle marker at user's real GPS position
-
-#### 2. Real-Time GPS Tracking (8-Second Interval)
-- `Geolocator.getCurrentPosition()` with `LocationAccuracy.high`
-- `Timer.periodic` updates every 8 seconds (later upgraded to stream in 6.1)
-- Map auto-centers on first GPS fix only
-- Marker moves to real position on every update
-- Graceful error handling — keeps last known position on failure
-
-#### 3. Reverse Geocoding — Human-Readable Address
-- **Package Added:** `geocoding: ^4.0.0`
-- `placemarkFromCoordinates()` converts GPS coords to address
-- Falls back to raw `lat, lng` string if geocoding fails
-- Address pushed to `ExhaustProvider` via `updateLocation()`
-
-#### 4. Live Location Sync to Dashboard
-- Every GPS update calls `exhaustProvider.updateLocation()`
-- `isInRestrictedArea` badge on dashboard updates in real time
-
----
-
-### 📦 Packages Added
-```yaml
-flutter_map: ^8.2.2
-latlong2: ^0.9.1
-geocoding: ^4.0.0
-```
-
----
-
-### 🎯 Impact on Project Progress
-- **Phase 5 (GPS):** 0% → **100%** ✅
-- **Phase 6 (Map):** 0% → **100%** ✅
-- **Overall Project:** 70% → **85%** (+15%)
+- Real OSM tiles via `flutter_map`
+- Real-time GPS tracking (8s interval → upgraded to stream in 6.1)
+- Reverse geocoding → human-readable address
+- Live location sync to Dashboard + `isInRestrictedArea` badge
 
 ---
 
 ## [0.4.0] - Phase 4: Bluetooth Hardware Integration
 
-**Status:** ✅ COMPLETED
-**Date Completed:** February 17, 2026
+**Status:** ✅ COMPLETED — February 17, 2026
 
-### 🎯 What This Phase Achieved:
-Replaced the entire mock Bluetooth implementation with real BLE scanning and connection using flutter_blue_plus. Fixed 6 critical bugs discovered during physical device testing including the splash screen never being shown, the connect button being non-functional, incorrect Android version detection, and scan triggering multiple times.
-
----
-
-### ✅ Features Added
-
-#### 1. Real BLE Device Scanning
-- **File Modified:** `lib/providers/bluetooth_provider.dart`
-- Full rewrite — all mock/simulated code removed
-- Real BLE scanning via `FlutterBluePlus.startScan()` with 5s timeout
-- RSSI signal strength converted to 0-100% scale
-- Auto-disconnect detection via `connectionState` stream
-- `stopScan()` called before every `startScan()` to prevent duplicates
-
-#### 2. Real BLE Connection
-- Real `device.connect()` with 10s timeout
-- Stores `BluetoothDevice` object reference for later commands (Phase 8)
-- Real `device.disconnect()` on logout/manual disconnect
-
-#### 3. Connect Button Fix
-- **File Modified:** `lib/widgets/bluetooth_connection_modal.dart`
-- Connect button had empty `onPressed: () {}` — tapping did nothing
-- Fixed to call real `connectToDevice()` and show result snackbar
-
----
-
-### 🐛 Bugs Fixed (6 total)
-1. ✅ Splash screen never shown
-2. ✅ Route conflict (`'/'` → `'/auth'`)
-3. ✅ Wrong Android version detection
-4. ✅ Connect button broken (empty `onPressed`)
-5. ✅ Multiple scan triggers
-6. ✅ flutter_blue_plus v2 paid license — downgraded to `1.31.15`
-
----
-
-### 🎯 Impact on Project Progress
-- **Phase 4 (Bluetooth):** 0% → **100%** ✅
-- **Overall Project:** 55% → **70%** (+15%)
+- Real BLE scanning + connection via `flutter_blue_plus 1.31.15`
+- 6 bugs fixed including splash never shown, connect button broken, wrong Android version detection
 
 ---
 
 ## [0.3.0] - Phase 3: Device Permissions & Enhanced UI
 
-**Status:** ✅ COMPLETED
-**Date Completed:** February 11, 2026, 9:30 PM
+**Status:** ✅ COMPLETED — February 11, 2026
 
-### 🎯 What This Phase Achieved:
-Implemented comprehensive permission system for Bluetooth and GPS, added professional UI components, configured app icon generation, and integrated permission requests into splash screen flow.
-
----
-
-### ✅ Features Added
-
-#### 1. Permission System
-- **File Created:** `lib/utils/permission_handler.dart`
-- Smart Bluetooth permission handling (Android 12+ support)
-- GPS/Location permission management
-- Beautiful permission request dialogs (Awesome Dialog)
-- Handle denied/permanently denied scenarios
-- Open settings helper for manually enabling permissions
-
-#### 2. Enhanced Splash Screen
-```
-Splash Screen Launch → Logo Animation (1.5s) → Request BT Permission → Request Location Permission → Navigate to AuthWrapper
-```
-
-#### 3. Android Permissions Declaration
-```xml
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
-<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.INTERNET" />
-```
-
----
-
-### 🎯 Impact on Project Progress
-- **Phase 3 (Permissions):** 0% → **100%** ✅
-- **Overall Project:** 42% → **55%** (+13%)
+- `AppPermissionHandler` — BT + GPS (Android 12+ support)
+- 7 permissions in AndroidManifest
+- Permission dialogs in splash screen flow
 
 ---
 
 ## [0.2.0] - Phase 2: Dashboard & Navigation
 
-**Status:** ✅ COMPLETED
-**Date Completed:** February 11, 2026, 8:56 PM
+**Status:** ✅ COMPLETED — February 11, 2026
 
-### ✅ Bug Fixes
-- Fixed critical navigation bug: `AuthWrapper` was returning `HomeScreen` instead of `MainNavigationScreen`
-
-### ✅ Features Added
-- Bottom Navigation (4 Tabs): Home, Map, Stats, Profile
-- `IndexedStack` for state preservation
-- `RestrictedArea` model with Haversine formula for distance checking
-
----
-
-### 🎯 Impact on Project Progress
-- **Phase 2 (Navigation):** 0% → **100%** ✅
-- **Overall Project:** 30% → **42%** (+12%)
+- Bottom Navigation (3 tabs after 6.1 cleanup), `IndexedStack`
+- `RestrictedArea` model + Haversine formula
+- Fixed `AuthWrapper` → `MainNavigationScreen` routing bug
 
 ---
 
 ## [0.1.0] - Phase 1: UI/UX Foundation & Branding
 
-**Status:** 🔄 IN PROGRESS (80% Complete)
-**Date Started:** February 11, 2026
+**Status:** 🔄 80% Complete
 
-### ✅ Completed:
-- Professional color system (`lib/utils/app_colors.dart`)
-- Typography system (`lib/utils/app_text_styles.dart`)
-- CustomButton + CustomTextField components
-- Branded splash screen
-- Optimized login/signup screens
-
-### 🔄 Pending:
-- ⏳ ReWatch logo integration (waiting for asset file)
-- ⏸️ Final animation polish
-- ⏸️ Dark mode preparation
+- Color system, typography, CustomButton, CustomTextField
+- Branded splash screen, login/signup screens
+- ⏳ Logo integration pending (waiting for asset)
 
 ---
 
 ## [0.0.1] - Core Foundation
 
 **Status:** ✅ COMPLETED
-**Date Completed:** Before February 11, 2026
 
-### ✅ Initial Setup:
-- Flutter project initialization
-- Firebase authentication setup
-- Basic login/signup screens
-- Auth provider with state management
-- Auth service with Firebase integration
-- Firestore service setup
-- Bluetooth provider (placeholder)
-- Restricted areas provider
-- Dashboard, profile, map screens (basic)
-- Navigation screen structure
-
-### 📦 Initial Dependencies:
-```yaml
-firebase_core: ^4.4.0
-firebase_auth: ^6.1.4
-cloud_firestore: ^6.1.2
-provider: ^6.1.5+1
-shared_preferences: ^2.5.4
-flutter_blue_plus: 1.31.15
-geolocator: ^14.0.2
-permission_handler: ^12.0.1
-font_awesome_flutter: ^10.7.0
-awesome_dialog: ^3.2.1
-flutter_svg: ^2.0.10
-lottie: ^3.1.2
-device_info_plus: ^10.1.0
-```
+- Flutter project, Firebase Auth, Provider state management, basic screens, Firestore service
 
 ---
 
 ## 📈 Version History Summary
 
-| Version | Phase | Status | Completion | Date |
-|---------|-------|--------|------------|------|
-| 0.0.1 | Foundation | ✅ Complete | 100% | Before Feb 11 |
-| 0.1.0 | UI/UX | 🔄 In Progress | 80% | Feb 11, 2026 |
-| 0.2.0 | Navigation | ✅ Complete | 100% | Feb 11, 2026 |
-| 0.3.0 | Permissions | ✅ Complete | 100% | Feb 11, 2026 |
-| 0.4.0 | Bluetooth | ✅ Complete | 100% | Feb 17, 2026 |
-| 0.5.0 | GPS | ✅ Complete | 100% | Feb 17, 2026 |
-| 0.6.0 | Map | ✅ Complete | 100% | Feb 17, 2026 |
-| 0.6.1 | Patches & Background GPS | ✅ Complete | 100% | Mar 5, 2026 |
-| **0.7.0** | **Multi-Role System** | **🔄 In Progress** | **0%** | **Mar 2026** |
-| 0.8.0 | Core Automation (BLE) | ⏸️ Planned | 0% | TBD |
-
----
-
-## 🎯 Next Release: [0.7.0] - Multi-Role System Expansion
-
-**Status:** 🔄 In Progress — starting from Step 7.1
-
-### First steps:
-1. Update `RestrictedArea` model (additive, no risk)
-2. Update Sign Up to write `role: "rider"`
-3. Update `AuthWrapper` for 3-role routing
-4. Seed Super Admin in Firestore console manually
-
----
-
-## 🎯 Future Release: [0.8.0] - Core Automation
-
-**Target Date:** TBD — blocked on ESP32 BLE UUIDs from hardware team
-
-### Planned Features:
-- Define ESP32 BLE service/characteristic UUIDs with hardware team
-- Send valve OPEN/CLOSE commands via BLE on geofence exit/entry
-- Notification when exhaust state changes automatically
-- Log history of automatic closures
+| Version | Phase | Status | Date |
+|---------|-------|--------|------|
+| 0.0.1 | Foundation | ✅ Complete | Before Feb 11 |
+| 0.1.0 | UI/UX | 🔄 80% | Feb 11, 2026 |
+| 0.2.0 | Navigation | ✅ Complete | Feb 11, 2026 |
+| 0.3.0 | Permissions | ✅ Complete | Feb 11, 2026 |
+| 0.4.0 | Bluetooth | ✅ Complete | Feb 17, 2026 |
+| 0.5.0 | GPS | ✅ Complete | Feb 17, 2026 |
+| 0.6.0 | Map | ✅ Complete | Feb 17, 2026 |
+| 0.6.1 | Patches & Background GPS | ✅ Complete | Mar 5, 2026 |
+| **0.7.0** | **Multi-Role System** | **🔄 ~40% of phase done** | **Mar 2026** |
+| 0.8.0 | Core Automation (BLE) | ⏸️ Blocked on ESP32 UUIDs | TBD |
 
 ---
 
 **Maintained by:** Development Team
 **Last Updated:** March 9, 2026
-**Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
