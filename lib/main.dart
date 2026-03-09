@@ -2,20 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 
-// Services
 import 'services/auth_service.dart';
-
-// Providers
 import 'providers/auth_provider.dart';
 import 'providers/bluetooth_provider.dart';
 import 'providers/exhaust_provider.dart';
 import 'providers/restricted_areas_provider.dart';
 
-// Screens
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
-import 'screens/main_navigation_screen.dart'; // ← This is the key!
+import 'screens/rider/main_navigation_screen.dart';
+import 'screens/admin/admin_navigation_screen.dart';
+import 'screens/barangay/barangay_navigation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,34 +28,26 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Auth Provider
         ChangeNotifierProvider(
           create: (_) => AuthProvider(AuthService())..checkAuthStatus(),
         ),
-        // Bluetooth Provider
         ChangeNotifierProvider(create: (_) => BluetoothProvider()),
-        // Exhaust Provider
         ChangeNotifierProvider(create: (_) => ExhaustProvider()),
-        // Restricted Areas Provider
         ChangeNotifierProvider(create: (_) => RestrictedAreasProvider()),
       ],
       child: MaterialApp(
         title: 'Exhaust Controller',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          primaryColor: const Color(0xFF3B82F6), // Primary Blue
-          scaffoldBackgroundColor: const Color(0xFFF9FAFB), // Gray 50
+          primaryColor: const Color(0xFF3B82F6),
+          scaffoldBackgroundColor: const Color(0xFFF9FAFB),
           useMaterial3: true,
-
-          // AppBar Theme
           appBarTheme: const AppBarTheme(
             backgroundColor: Colors.white,
             foregroundColor: Color(0xFF111827),
             elevation: 0,
             centerTitle: false,
           ),
-
-          // Button Theme
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
@@ -69,8 +59,6 @@ class MyApp extends StatelessWidget {
               elevation: 0,
             ),
           ),
-
-          // Input Decoration Theme
           inputDecorationTheme: InputDecorationTheme(
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -99,7 +87,7 @@ class MyApp extends StatelessWidget {
           '/auth': (context) => const AuthWrapper(),
           '/login': (context) => const LoginScreen(),
           '/signup': (context) => const SignupScreen(),
-          '/home': (context) => const MainNavigationScreen(),
+          '/home': (context) => const AuthWrapper(),
         },
       ),
     );
@@ -119,12 +107,21 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        if (authProvider.user != null) {
-          // ← This is the important part!
-          return const MainNavigationScreen(); // Changed from HomeScreen
+        if (authProvider.user == null) {
+          return const LoginScreen();
         }
 
-        return const LoginScreen();
+        // Role-based routing
+        final role = authProvider.role;
+
+        if (role == 'superadmin') {
+          return const AdminNavigationScreen();
+        } else if (role == 'barangay_official') {
+          return const BarangayNavigationScreen();
+        } else {
+          // Default: rider (also handles null role gracefully)
+          return const MainNavigationScreen();
+        }
       },
     );
   }

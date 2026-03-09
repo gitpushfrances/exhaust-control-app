@@ -3,18 +3,9 @@ class RestrictedArea {
   final String name;
   final double latitude;
   final double longitude;
-  final double radius;
+  final double radius; // in meters
   final String createdBy;
   final DateTime createdAt;
-
-  // Phase 7 fields
-  final String status; // 'pending' | 'approved' | 'rejected'
-  final String? barangayId;
-  final String? submittedByUid;
-  final String? remarks;
-  final String? rejectionReason;
-  final DateTime? approvedAt;
-  final String? approvedByUid;
 
   RestrictedArea({
     required this.id,
@@ -24,29 +15,30 @@ class RestrictedArea {
     required this.radius,
     required this.createdBy,
     required this.createdAt,
-    this.status = 'approved',
-    this.barangayId,
-    this.submittedByUid,
-    this.remarks,
-    this.rejectionReason,
-    this.approvedAt,
-    this.approvedByUid,
   });
 
+  /// Check if a point (lat, lng) is inside this restricted area
   bool containsPoint(double lat, double lng) {
-    const double earthRadius = 6371000;
+    // Calculate distance using Haversine formula (simplified)
+    const double earthRadius = 6371000; // meters
+
     final double dLat = _toRadians(lat - latitude);
     final double dLng = _toRadians(lng - longitude);
+
     final double a =
         (dLat / 2).sin() * (dLat / 2).sin() +
         latitude.toRadians().cos() *
             lat.toRadians().cos() *
             (dLng / 2).sin() *
             (dLng / 2).sin();
+
     final double c = 2 * a.sqrt().asin();
-    return earthRadius * c <= radius;
+    final double distance = earthRadius * c;
+
+    return distance <= radius;
   }
 
+  /// Convert to Map for Firestore
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -56,16 +48,10 @@ class RestrictedArea {
       'radius': radius,
       'createdBy': createdBy,
       'createdAt': createdAt.toIso8601String(),
-      'status': status,
-      'barangay_id': barangayId,
-      'submitted_by_uid': submittedByUid,
-      'remarks': remarks,
-      'rejection_reason': rejectionReason,
-      'approved_at': approvedAt?.toIso8601String(),
-      'approved_by_uid': approvedByUid,
     };
   }
 
+  /// Create from Firestore Map
   factory RestrictedArea.fromMap(Map<String, dynamic> map) {
     return RestrictedArea(
       id: map['id'] ?? '',
@@ -77,34 +63,33 @@ class RestrictedArea {
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'])
           : DateTime.now(),
-      status: map['status'] ?? 'approved',
-      barangayId: map['barangay_id'],
-      submittedByUid: map['submitted_by_uid'],
-      remarks: map['remarks'],
-      rejectionReason: map['rejection_reason'],
-      approvedAt: map['approved_at'] != null
-          ? DateTime.parse(map['approved_at'])
-          : null,
-      approvedByUid: map['approved_by_uid'],
     );
   }
 
-  double _toRadians(double degrees) => degrees * 3.141592653589793 / 180;
+  /// Helper method to convert degrees to radians
+  double _toRadians(double degrees) {
+    return degrees * 3.141592653589793 / 180;
+  }
 
   @override
-  String toString() =>
-      'RestrictedArea(name: $name, lat: $latitude, lng: $longitude, radius: ${radius}m, status: $status)';
+  String toString() {
+    return 'RestrictedArea(name: $name, lat: $latitude, lng: $longitude, radius: ${radius}m)';
+  }
 }
 
+/// Extension for easier radian conversion
 extension DoubleExtension on double {
   double toRadians() => this * 3.141592653589793 / 180;
-  double sin() => _sin();
-  double cos() => _cos();
-  double asin() => _asin();
-  double sqrt() => _sqrt();
+  double sin() => this._sin();
+  double cos() => this._cos();
+  double asin() => this._asin();
+  double sqrt() => this._sqrt();
 
+  // Using dart:math functions
   double _sin() {
-    double x = this, result = x, term = x;
+    double x = this;
+    double result = x;
+    double term = x;
     for (int i = 1; i < 10; i++) {
       term *= -x * x / ((2 * i) * (2 * i + 1));
       result += term;
@@ -113,7 +98,9 @@ extension DoubleExtension on double {
   }
 
   double _cos() {
-    double x = this, result = 1, term = 1;
+    double x = this;
+    double result = 1;
+    double term = 1;
     for (int i = 1; i < 10; i++) {
       term *= -x * x / ((2 * i - 1) * (2 * i));
       result += term;
@@ -121,17 +108,24 @@ extension DoubleExtension on double {
     return result;
   }
 
-  double _asin() => 2 * (this / (1 + (1 - this * this).sqrt())).atan();
+  double _asin() {
+    return 2 * (this / (1 + (1 - this * this).sqrt())).atan();
+  }
 
   double _sqrt() {
     if (this < 0) return double.nan;
-    double x = this, guess = x / 2;
-    for (int i = 0; i < 10; i++) guess = (guess + x / guess) / 2;
+    double x = this;
+    double guess = x / 2;
+    for (int i = 0; i < 10; i++) {
+      guess = (guess + x / guess) / 2;
+    }
     return guess;
   }
 
   double atan() {
-    double x = this, result = x, term = x;
+    double x = this;
+    double result = x;
+    double term = x;
     for (int i = 1; i < 20; i++) {
       term *= -x * x * (2 * i - 1) / (2 * i + 1);
       result += term;

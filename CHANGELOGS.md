@@ -4,6 +4,86 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.0] - Phase 7: Multi-Role System Expansion
+
+**Status:** 🔄 IN PROGRESS
+**Date Started:** March 2026
+
+### 🎯 What This Phase Will Achieve:
+Expand the app from a single-role rider app into a full 3-role system — Super Admin, Barangay Official, and Rider. Adds role-based routing, Admin screens (dashboard, request inbox, manage officials, global map), Barangay Official screens (dashboard, submit request, request history, notifications), barangay boundary enforcement, and an in-app notification system.
+
+---
+
+### 📋 Implementation Steps (in order)
+
+| Step | Task | Risk | Status |
+|------|------|------|--------|
+| 7.1 | Update `RestrictedArea` model — add `status`, `barangay_id`, `submitted_by_uid`, `remarks`, `rejection_reason`, `approved_at`, `approved_by_uid` fields with defaults | None | ⏳ Pending |
+| 7.2 | Update Sign Up screen — write `role: "rider"` on register | None | ⏳ Pending |
+| 7.3 | Update `AuthWrapper` — role-based routing to 3 navigation screens | Low | ⏳ Pending |
+| 7.4 | Seed Super Admin in Firestore console manually | None | ⏳ Pending |
+| 7.5 | Update `streamRestrictedAreas()` — add `.where("status", isEqualTo: "approved")` filter | Low | ⏳ Pending |
+| 7.6 | Remove Add Restricted Area button from rider UI (Dashboard home + disconnected state) | None | ⏳ Pending |
+| 7.7 | Create `AdminNavigationScreen` + 4 skeleton screens | None | ⏳ Pending |
+| 7.8 | Build Admin Home Dashboard (stat cards, recent activity feed) | None | ⏳ Pending |
+| 7.9 | Build Request Inbox + Detail screen + Approve/Reject flow | None | ⏳ Pending |
+| 7.10 | Build Manage Officials + Create Official form | None | ⏳ Pending |
+| 7.11 | Build Admin Global Map with filter chips + Add Zone directly | None | ⏳ Pending |
+| 7.12 | Create `BarangayNavigationScreen` + 4 skeleton screens | None | ⏳ Pending |
+| 7.13 | Build Barangay Home Dashboard (zone stats, request summary, bell icon) | None | ⏳ Pending |
+| 7.14 | Build Submit Request screen (extend existing add area logic, new file) | None | ⏳ Pending |
+| 7.15 | Implement barangay boundary check — Option A circle (Haversine reuse) | None | ⏳ Pending |
+| 7.16 | Build My Requests screen — 3 inner tabs (Pending / Approved / Rejected) | None | ⏳ Pending |
+| 7.17 | Build Notifications screen + bell icon on Barangay Home | None | ⏳ Pending |
+| 7.18 | Write Firestore notification documents on approve / reject / submit events | Low | ⏳ Pending |
+| 7.19 | Tighten Firestore security rules (all roles) | **HIGH** | ⏳ Pending |
+| 7.20 | Add FCM push notifications (optional, add last) | Low | ⏳ Pending |
+
+---
+
+### 🗂️ New Files (planned)
+```
+lib/
+├── screens/
+│   ├── admin/
+│   │   ├── admin_navigation_screen.dart
+│   │   ├── admin_home_screen.dart
+│   │   ├── admin_request_inbox_screen.dart
+│   │   ├── admin_request_detail_screen.dart
+│   │   ├── admin_manage_officials_screen.dart
+│   │   ├── admin_create_official_screen.dart
+│   │   └── admin_global_map_screen.dart
+│   └── barangay/
+│       ├── barangay_navigation_screen.dart
+│       ├── barangay_home_screen.dart
+│       ├── barangay_submit_request_screen.dart
+│       ├── barangay_my_requests_screen.dart
+│       └── barangay_notifications_screen.dart
+```
+
+### 🗂️ Files Modified (planned)
+```
+lib/
+├── models/restricted_area.dart          — model update
+├── screens/auth/sign_up_screen.dart     — write role: "rider"
+├── screens/auth/auth_wrapper.dart       — role routing
+├── screens/home_screen.dart             — remove add area button
+├── services/firestore_service.dart      — status filter on streamRestrictedAreas
+└── utils/auth_provider.dart             — read role + is_active on login
+```
+
+---
+
+### 🔒 Firestore Security Rules (Step 7.19 — do last)
+```
+/users/{uid}         — read/write own doc only OR superadmin
+/barangays/{id}      — read: all authenticated | write: superadmin only
+/restricted_areas/{id} — complex per-role rules (see flow doc)
+/notifications/{id}  — read: recipient only | write: any authenticated
+```
+
+---
+
 ## [0.6.1] - Phase 6 Patches & Background GPS
 
 **Status:** ✅ COMPLETED
@@ -108,12 +188,12 @@ Plus `GeolocatorService` service declaration with `foregroundServiceType="locati
 ---
 
 ### 🎯 Impact on Project Progress
-- **Overall Project:** 85% → **90%** (+5%)
+- **Overall Project (original scope):** 85% → **90%** (+5%)
 - **Remaining:** Phase 7 (BLE automation) — blocked on ESP32 UUIDs from hardware team
 
 ---
 
-## [0.6.0] - Phase 5 & 6: GPS, Map Integration & Geocoding ⭐ NEW!
+## [0.6.0] - Phase 5 & 6: GPS, Map Integration & Geocoding
 
 **Status:** ✅ COMPLETED
 **Date Completed:** February 17, 2026
@@ -127,35 +207,31 @@ Replaced the static placeholder map with a fully functional OpenStreetMap integr
 
 #### 1. Real OpenStreetMap Integration
 - **File Modified:** `lib/screens/map_screen.dart`
-- **Features:**
-  - ✅ Full rewrite — placeholder grid/mock map removed entirely
-  - ✅ Real OSM tiles via `TileLayer` with `flutter_map`
-  - ✅ Pinch to zoom, drag to pan — native map controls
-  - ✅ Zoom range: 5.0 (country) to 18.0 (street level)
-  - ✅ `MapController` for programmatic map control
-  - ✅ Center-on-user button snaps map back to current location
-  - ✅ Restricted area circles drawn on map as red overlays
-  - ✅ Motorcycle marker at user's real GPS position
+- Full rewrite — placeholder grid/mock map removed entirely
+- Real OSM tiles via `TileLayer` with `flutter_map`
+- Pinch to zoom, drag to pan — native map controls
+- Zoom range: 5.0 (country) to 18.0 (street level)
+- `MapController` for programmatic map control
+- Center-on-user button snaps map back to current location
+- Restricted area circles drawn on map as red overlays
+- Motorcycle marker at user's real GPS position
 
 #### 2. Real-Time GPS Tracking (8-Second Interval)
-- **File Modified:** `lib/screens/map_screen.dart`
-- **Features:**
-  - ✅ `Geolocator.getCurrentPosition()` with `LocationAccuracy.high`
-  - ✅ `Timer.periodic` updates every 8 seconds
-  - ✅ Timer properly cancelled in `dispose()` — no memory leaks
-  - ✅ Map auto-centers on first GPS fix only (user can pan freely after)
-  - ✅ Marker moves to real position on every update
-  - ✅ Graceful error handling — keeps last known position on failure
+- `Geolocator.getCurrentPosition()` with `LocationAccuracy.high`
+- `Timer.periodic` updates every 8 seconds (later upgraded to stream in 6.1)
+- Map auto-centers on first GPS fix only
+- Marker moves to real position on every update
+- Graceful error handling — keeps last known position on failure
 
 #### 3. Reverse Geocoding — Human-Readable Address
 - **Package Added:** `geocoding: ^4.0.0`
-- ✅ `placemarkFromCoordinates()` converts GPS coords to address
-- ✅ Falls back to raw `lat, lng` string if geocoding fails
-- ✅ Address pushed to `ExhaustProvider` via `updateLocation()`
+- `placemarkFromCoordinates()` converts GPS coords to address
+- Falls back to raw `lat, lng` string if geocoding fails
+- Address pushed to `ExhaustProvider` via `updateLocation()`
 
 #### 4. Live Location Sync to Dashboard
-- ✅ Every GPS update calls `exhaustProvider.updateLocation()`
-- ✅ `isInRestrictedArea` badge on dashboard updates in real time
+- Every GPS update calls `exhaustProvider.updateLocation()`
+- `isInRestrictedArea` badge on dashboard updates in real time
 
 ---
 
@@ -197,7 +273,7 @@ Replaced the entire mock Bluetooth implementation with real BLE scanning and con
 
 #### 2. Real BLE Connection
 - Real `device.connect()` with 10s timeout
-- Stores `BluetoothDevice` object reference for later commands (Phase 7)
+- Stores `BluetoothDevice` object reference for later commands (Phase 8)
 - Real `device.disconnect()` on logout/manual disconnect
 
 #### 3. Connect Button Fix
@@ -355,23 +431,35 @@ device_info_plus: ^10.1.0
 | 0.5.0 | GPS | ✅ Complete | 100% | Feb 17, 2026 |
 | 0.6.0 | Map | ✅ Complete | 100% | Feb 17, 2026 |
 | 0.6.1 | Patches & Background GPS | ✅ Complete | 100% | Mar 5, 2026 |
-| 0.7.0 | Automation | ⏸️ Planned | 0% | TBD |
+| **0.7.0** | **Multi-Role System** | **🔄 In Progress** | **0%** | **Mar 2026** |
+| 0.8.0 | Core Automation (BLE) | ⏸️ Planned | 0% | TBD |
 
 ---
 
-## 🎯 Next Release: [0.7.0] - Core Automation
+## 🎯 Next Release: [0.7.0] - Multi-Role System Expansion
+
+**Status:** 🔄 In Progress — starting from Step 7.1
+
+### First steps:
+1. Update `RestrictedArea` model (additive, no risk)
+2. Update Sign Up to write `role: "rider"`
+3. Update `AuthWrapper` for 3-role routing
+4. Seed Super Admin in Firestore console manually
+
+---
+
+## 🎯 Future Release: [0.8.0] - Core Automation
 
 **Target Date:** TBD — blocked on ESP32 BLE UUIDs from hardware team
 
 ### Planned Features:
 - Define ESP32 BLE service/characteristic UUIDs with hardware team
-- Send valve OPEN command via BLE on geofence exit
-- Send valve CLOSE command via BLE on geofence entry
+- Send valve OPEN/CLOSE commands via BLE on geofence exit/entry
 - Notification when exhaust state changes automatically
 - Log history of automatic closures
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** March 5, 2026
+**Last Updated:** March 9, 2026
 **Format:** [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)

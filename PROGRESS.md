@@ -2,14 +2,27 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** March 5, 2026
+**Last Updated:** March 9, 2026
 
 ---
 
-## 🎯 Overall Progress: 90% Complete
+## 🎯 Overall Progress: ~55% Complete
+> ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
+> Original rider-only scope was 90% complete. Role expansion resets overall completion to ~55%.
+
 ```
-[█████████████████████████████░░░] 90%
+[██████████████████░░░░░░░░░░░░░░] 55%
 ```
+
+### Scope Breakdown:
+| Scope | Progress |
+|-------|----------|
+| Rider functionality (original scope) | ~95% — minor removals pending |
+| Super Admin screens | 0% — build from scratch |
+| Barangay Official screens | 0% — build from scratch |
+| Phase 8 BLE Automation | 0% — blocked on ESP32 UUIDs |
+
+---
 
 ### Phase Breakdown:
 - ✅ **Foundation:** 100% Complete
@@ -19,8 +32,9 @@
 - ✅ **Phase 4 (Bluetooth):** 100% Complete
 - ✅ **Phase 5 (GPS):** 100% Complete
 - ✅ **Phase 6 (Map):** 100% Complete
-- ✅ **Phase 6.1 (Patches):** 100% Complete ⭐ NEW!
-- ⏸️ **Phase 7 (Automation):** 0% — blocked on ESP32 UUIDs
+- ✅ **Phase 6.1 (Patches):** 100% Complete
+- 🔄 **Phase 7 (Multi-Role System):** 0% — active next
+- ⏸️ **Phase 8 (BLE Automation):** 0% — blocked on ESP32 UUIDs
 
 ---
 
@@ -28,15 +42,93 @@
 
 ---
 
-### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete) ⭐ NEW!
+### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (0% — Starting Now)
+
+**Status:** 🔄 IN PROGRESS
+**Date Started:** March 2026
+
+#### Progress: 0%
+```
+[░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] 0%
+```
+
+#### Step Checklist:
+
+**Group A — Low-risk additive changes (do first)**
+- [ ] 7.1 — Update `RestrictedArea` model (new fields with defaults)
+- [ ] 7.2 — Update Sign Up screen → write `role: "rider"` on register
+- [ ] 7.3 — Update `AuthWrapper` → route to 3 navigation screens by role
+- [ ] 7.4 — Seed Super Admin manually in Firestore console
+- [ ] 7.5 — Update `streamRestrictedAreas()` → filter `status == "approved"`
+- [ ] 7.6 — Remove Add Restricted Area button from rider UI
+
+**Group B — Admin screens (new files only)**
+- [ ] 7.7 — `AdminNavigationScreen` + 4 skeleton screens
+- [ ] 7.8 — Admin Home Dashboard (stat cards, recent activity)
+- [ ] 7.9 — Request Inbox + Detail screen + Approve/Reject flow
+- [ ] 7.10 — Manage Officials + Create Official form
+- [ ] 7.11 — Admin Global Map (filter chips, add zone directly)
+
+**Group C — Barangay Official screens (new files only)**
+- [ ] 7.12 — `BarangayNavigationScreen` + 4 skeleton screens
+- [ ] 7.13 — Barangay Home Dashboard
+- [ ] 7.14 — Submit Request screen (extend existing map-tap logic)
+- [ ] 7.15 — Barangay boundary check (Option A — Haversine circle)
+- [ ] 7.16 — My Requests screen (3 inner tabs: Pending / Approved / Rejected)
+- [ ] 7.17 — Notifications screen + bell icon
+
+**Group D — Wiring + security (do last)**
+- [ ] 7.18 — Write Firestore notification documents on approve/reject/submit
+- [ ] 7.19 — ⚠️ Tighten Firestore security rules (HIGH RISK — test all roles after)
+- [ ] 7.20 — FCM push notifications (optional)
+
+#### Estimated Time:
+| Task | Estimate |
+|------|----------|
+| RestrictedArea model update | 30 min |
+| Role routing in AuthWrapper | 1 hr |
+| Super Admin all 4 screens | 2–3 days |
+| Barangay Official all 4 screens | 1.5–2 days |
+| Boundary enforcement (Option A) | 2 hrs |
+| Notification documents | 3 hrs |
+| Firestore security rules | 2 hrs |
+| FCM push (optional) | 4 hrs |
+
+#### New Files (planned):
+```
+lib/screens/admin/
+├── admin_navigation_screen.dart
+├── admin_home_screen.dart
+├── admin_request_inbox_screen.dart
+├── admin_request_detail_screen.dart
+├── admin_manage_officials_screen.dart
+├── admin_create_official_screen.dart
+└── admin_global_map_screen.dart
+
+lib/screens/barangay/
+├── barangay_navigation_screen.dart
+├── barangay_home_screen.dart
+├── barangay_submit_request_screen.dart
+├── barangay_my_requests_screen.dart
+└── barangay_notifications_screen.dart
+```
+
+#### Files to Modify (planned):
+```
+lib/models/restricted_area.dart
+lib/screens/auth/sign_up_screen.dart
+lib/screens/auth/auth_wrapper.dart
+lib/screens/home_screen.dart
+lib/services/firestore_service.dart
+lib/utils/auth_provider.dart
+```
+
+---
+
+### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete)
 
 **Status:** ✅ COMPLETE
 **Completion Date:** March 5, 2026
-
-#### Progress: 100%
-```
-[████████████████████████████████] 100%
-```
 
 #### Completed Tasks:
 - [x] Remove Stats tab — 4 tabs → 3 tabs (Home, Map, Profile)
@@ -56,164 +148,82 @@
 - [x] Fix provider initialization — `RestrictedAreasProvider.initialize()` never called
 - [x] Push to GitHub main branch
 
-#### Key Bugs Fixed:
-| # | Bug | Root Cause | Fix |
-|---|-----|------------|-----|
-| 1 | Background GPS dies | `Timer.periodic` widget-lifecycle bound | `getPositionStream()` + foreground service |
-| 2 | Device killed on map open | `AnimationController` render storm | Removed entirely, direct `move()` |
-| 3 | Firestore writes denied | Security rules blocked `restricted_areas` path | Rules: `allow read, write: if request.auth != null` |
-| 4 | Areas never load | `isActive` filter, field doesn't exist in docs | Removed `isActive` filter |
-| 5 | Provider empty on launch | `initialize()` never called | Added to `MainNavigationScreen.initState` |
-| 6 | Add area opens at wrong location | Hardcoded Manila coords | Fetch real GPS on init |
-| 7 | Add area hangs on tap | Geocoding blocking UI thread | Moved geocoding to background async |
-
-#### Files Modified:
-```
-lib/
-├── screens/
-│   ├── main_navigation_screen.dart    🔄 Remove Stats, add provider init
-│   ├── map_screen.dart                🔄 Timer→Stream, address format, remove animation
-│   └── add_restricted_area_screen.dart 🔄 Full rewrite — map-tap UI
-├── services/
-│   └── firestore_service.dart         🔄 Remove isActive filter
-└── utils/
-    └── permission_handler.dart        🔄 Add background location request
-
-android/app/src/main/AndroidManifest.xml  🔄 Background location permissions
-```
-
 ---
 
 ### ✅ PHASE 6: MAP INTEGRATION (100% Complete)
 
-**Status:** ✅ COMPLETE
-**Completion Date:** February 17, 2026
+**Status:** ✅ COMPLETE — February 17, 2026
 
-#### Completed Tasks:
-- [x] Install `flutter_map` and `latlong2` packages
-- [x] Replace `_MapPlaceholder` with real `FlutterMap` widget
-- [x] Add OSM tile layer
-- [x] Add motorcycle marker at user's GPS position
-- [x] Add red circle overlays for restricted areas from Firestore
-- [x] Implement `MapController` for programmatic control
-- [x] Center-on-user button working
-- [x] Remove dead placeholder classes
-
-#### Packages Added:
-```yaml
-flutter_map: ^8.2.2
-latlong2: ^0.9.1
-```
+- [x] `flutter_map` + OSM tiles
+- [x] Motorcycle marker at real GPS position
+- [x] Red circle overlays for restricted areas
+- [x] `MapController` + center-on-user button
 
 ---
 
 ### ✅ PHASE 5: GPS & LOCATION SERVICES (100% Complete)
 
-**Status:** ✅ COMPLETE
-**Completion Date:** February 17, 2026
+**Status:** ✅ COMPLETE — February 17, 2026
 
-#### Completed Tasks:
-- [x] `Geolocator.getCurrentPosition()` with high accuracy
-- [x] 8-second `Timer.periodic` for continuous updates (later upgraded to stream in 6.1)
-- [x] Auto-center map on first GPS fix only
-- [x] Install and integrate `geocoding` package
-- [x] Reverse geocoding (coords → human-readable address)
-- [x] Push live location + address to `ExhaustProvider`
-- [x] Restricted area check on every GPS update
-- [x] `isInRestrictedArea` badge on dashboard updates in real time
-
-#### Packages Added:
-```yaml
-geocoding: ^4.0.0
-```
+- [x] `Geolocator` high-accuracy GPS
+- [x] Reverse geocoding → human-readable address
+- [x] Live location + `isInRestrictedArea` badge on dashboard
 
 ---
 
 ### ✅ PHASE 4: BLUETOOTH INTEGRATION (100% Complete)
 
-**Status:** ✅ COMPLETE
-**Completion Date:** February 17, 2026
+**Status:** ✅ COMPLETE — February 17, 2026
 
-#### Completed Tasks:
-- [x] Replace mock Bluetooth provider with real BLE implementation
-- [x] Real BLE device scanning with RSSI signal strength
-- [x] Real `device.connect()` / `device.disconnect()`
-- [x] Store `BluetoothDevice` reference for Phase 7 commands
-- [x] Fix connect button (was empty `onPressed`)
-- [x] Fix multiple scan trigger bug
-- [x] Downgrade flutter_blue_plus to free version (1.31.15)
-- [x] Fix splash screen routing
-
-#### Bugs Fixed: 6 total (see CHANGELOG for details)
+- [x] Real BLE scanning + connection via `flutter_blue_plus 1.31.15`
+- [x] `BluetoothDevice` reference stored for Phase 8 commands
+- [x] 6 bugs fixed (see CHANGELOG)
 
 ---
 
 ### ✅ PHASE 3: DEVICE PERMISSIONS (100% Complete)
 
-**Status:** ✅ COMPLETE
-**Completion Date:** February 11, 2026, 9:30 PM
+**Status:** ✅ COMPLETE — February 11, 2026
 
-#### Completed Tasks:
-- [x] `AppPermissionHandler` class
-- [x] Bluetooth + GPS permissions (Android 12+ support)
-- [x] Awesome Dialog permission modals
-- [x] AndroidManifest.xml — 7 permissions declared
+- [x] `AppPermissionHandler` — BT + GPS (Android 12+ support)
+- [x] 7 permissions in AndroidManifest
 
 ---
 
 ### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
 
-**Status:** ✅ COMPLETE
-**Completion Date:** February 11, 2026, 8:56 PM
+**Status:** ✅ COMPLETE — February 11, 2026
 
-#### Completed Tasks:
-- [x] Fixed critical navigation bug (AuthWrapper → MainNavigationScreen)
-- [x] Bottom navigation with IndexedStack
-- [x] RestrictedArea model (Haversine formula, Firestore methods)
+- [x] AuthWrapper → MainNavigationScreen fixed
+- [x] Bottom nav with IndexedStack
+- [x] `RestrictedArea` model + Haversine formula
 
 ---
 
 ### 🔄 PHASE 1: UI/UX FOUNDATION & BRANDING (80% Complete)
 
-**Status:** 🔄 IN PROGRESS
-
-#### Completed:
-- [x] Professional color system
-- [x] Typography scale
-- [x] CustomButton + CustomTextField
-- [x] Branded splash screen
-- [x] Login/signup screens
-
-#### Pending:
-- [ ] ⏳ ReWatch logo integration (waiting for asset file)
+- [x] Color system, typography, CustomButton, CustomTextField
+- [x] Splash screen, login/signup screens
+- [ ] ⏳ ReWatch logo integration (waiting for asset)
 - [ ] ⏸️ Final animation polish
-- [ ] ⏸️ Dark mode preparation
 
 ---
 
 ### ✅ PHASE 0: FOUNDATION (100% Complete)
 
-- Firebase Auth, Provider state management, basic routing, core screens
+Firebase Auth, Provider state management, basic routing, core screens.
 
 ---
 
-### ⏸️ PHASE 7: CORE AUTOMATION (0% Complete)
+### ⏸️ PHASE 8: CORE AUTOMATION (0% — Blocked)
 
 **Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
-**Target Start:** When UUIDs are received
 
-#### Planned Tasks:
-- [ ] Get ESP32 BLE Service UUID + Characteristic UUID from hardware team
-- [ ] Define command protocol (e.g. `0x01` = CLOSE, `0x00` = OPEN, or string "OPEN"/"CLOSE")
-- [ ] Send valve CLOSE command on geofence entry
-- [ ] Send valve OPEN command on geofence exit
-- [ ] Notification when exhaust state changes automatically
-- [ ] Log history of automatic closures
-
-#### Blocked On:
-- ESP32 BLE Service UUID
-- ESP32 BLE Characteristic UUID
-- Command byte/string protocol definition from hardware team
+- [ ] Get ESP32 BLE Service UUID + Characteristic UUID
+- [ ] Define command protocol (OPEN/CLOSE bytes or strings)
+- [ ] Send valve CLOSE on geofence entry
+- [ ] Send valve OPEN on geofence exit
+- [ ] Auto-closure notification + log history
 
 ---
 
@@ -261,7 +271,8 @@ flutter_launcher_icons: ^0.14.1
 | 5 | Hardware Ready (BLE) | ✅ Done | Feb 17 |
 | 6 | Live Map & GPS | ✅ Done | Feb 17 |
 | 7 | Background GPS + Map-tap Areas | ✅ Done | Mar 5 |
-| 8 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
+| 8 | Multi-Role System | 🔄 0% | Mar 2026 |
+| 9 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
 
 ---
 
@@ -281,9 +292,11 @@ flutter_launcher_icons: ^0.14.1
 11. ✅ Permission system with dialogs
 12. ✅ Profile management
 13. ⏳ Logo branding (pending asset)
-14. ❌ Automatic valve control (Phase 7 — blocked)
+14. 🔄 Multi-role system (in progress)
+15. ❌ Automatic valve control (Phase 8 — blocked)
 
-### Presentation Score: **90/100**
+### Presentation Score: **55/100** (expanded scope)
+> Was 90/100 on original rider-only scope. Role system in progress.
 
 ---
 
@@ -292,12 +305,13 @@ flutter_launcher_icons: ^0.14.1
 | Item | Priority | Notes |
 |------|----------|-------|
 | Debug `print()` in splash + permission handler | Low | Clean before final demo |
-| BLE scan not filtered to ESP32 UUID | Medium | Fix in Phase 7 |
-| ESP32 BLE UUIDs not defined | **Blocker** | Needed for Phase 7 |
+| BLE scan not filtered to ESP32 UUID | Medium | Fix in Phase 8 |
+| ESP32 BLE UUIDs not defined | **Blocker** | Needed for Phase 8 |
 | iOS Info.plist not configured | Low | Android only for capstone |
 | `id: ''` saved in Firestore docs | Low | Should save Firestore doc ID back to document |
+| Firestore rules too permissive | Medium | Tighten in Step 7.19 |
 
 ---
 
 **For detailed changes, see:** [CHANGELOG.md](./CHANGELOG.md)
-**Last Updated:** March 5, 2026
+**Last Updated:** March 9, 2026
