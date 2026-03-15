@@ -12,7 +12,8 @@ class AdminGlobalMapScreen extends StatefulWidget {
   State<AdminGlobalMapScreen> createState() => _AdminGlobalMapScreenState();
 }
 
-class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
+class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen>
+    with SingleTickerProviderStateMixin {
   final FirestoreService _fs = FirestoreService();
   final MapController _mapController = MapController();
   String _filter = 'all';
@@ -22,15 +23,26 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
   bool _locationReady = false;
   StreamSubscription<Position>? _positionStream;
 
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+    _pulseAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
     _startLocationStream();
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -40,7 +52,6 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
       intervalDuration: const Duration(seconds: 8),
       distanceFilter: 5,
     );
-
     _positionStream =
         Geolocator.getPositionStream(locationSettings: locationSettings).listen(
           (position) {
@@ -56,7 +67,7 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
           },
           onError: (e) {},
         );
-  } // all | approved | pending | rejected
+  }
 
   static const _colors = {
     'approved': Color(0xFF10B981),
@@ -85,9 +96,9 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
               point: LatLng(lat, lng),
               radius: radius,
               useRadiusInMeter: true,
-              color: color.withValues(alpha: 0.2),
+              color: color.withValues(alpha: 0.15),
               borderColor: color,
-              borderStrokeWidth: 2,
+              borderStrokeWidth: 1.5,
             );
           }).toList();
 
@@ -98,18 +109,88 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
             final lng = (area['longitude'] ?? 0.0).toDouble();
             return Marker(
               point: LatLng(lat, lng),
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 36,
               child: GestureDetector(
                 onTap: () => _showAreaSheet(context, area),
-                child: Icon(Icons.location_on, color: color, size: 32),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.4),
+                            blurRadius: 6,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(Icons.location_on, color: Colors.white, size: 14),
+                    ),
+                    // Pin tail
+                    Container(
+                      width: 2,
+                      height: 6,
+                      color: color,
+                    ),
+                  ],
+                ),
               ),
             );
           }).toList();
 
+          // Current location marker — same pulsing dot as rider map
+          final locationMarker = _locationReady
+              ? Marker(
+                  point: LatLng(_currentLat, _currentLng),
+                  width: 40,
+                  height: 40,
+                  child: AnimatedBuilder(
+                    animation: _pulseAnimation,
+                    builder: (context, child) {
+                      return Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF3B82F6).withValues(
+                                alpha: (1 - _pulseAnimation.value) * 0.3,
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: const Color(0xFF3B82F6),
+                              border: Border.all(color: Colors.white, width: 2.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                                  blurRadius: 6,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                )
+              : null;
+
           return Stack(
             children: [
-              // Map
               FlutterMap(
                 mapController: _mapController,
                 options: MapOptions(
@@ -126,29 +207,7 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                   MarkerLayer(
                     markers: [
                       ...markers,
-                      if (_locationReady)
-                        Marker(
-                          point: LatLng(_currentLat, _currentLng),
-                          width: 40,
-                          height: 40,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFF3B82F6,
-                              ).withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFF3B82F6),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.my_location,
-                              color: Color(0xFF3B82F6),
-                              size: 20,
-                            ),
-                          ),
-                        ),
+                      if (locationMarker != null) locationMarker,
                     ],
                   ),
                 ],
@@ -162,46 +221,33 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.08),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.map_outlined,
-                                  size: 18,
-                                  color: Color(0xFF3B82F6),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Global Map  •  ${filtered.length} zone${filtered.length != 1 ? 's' : ''}',
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF111827),
-                                  ),
-                                ),
-                              ],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.08),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.map_outlined, size: 18, color: Color(0xFF3B82F6)),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Global Map  •  ${filtered.length} zone${filtered.length != 1 ? 's' : ''}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -219,40 +265,29 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                     child: Row(
                       children: [
                         _FilterChip(
-                          label: 'All',
-                          count: all.length,
-                          selected: _filter == 'all',
-                          color: const Color(0xFF3B82F6),
+                          label: 'All', count: all.length,
+                          selected: _filter == 'all', color: const Color(0xFF3B82F6),
                           onTap: () => setState(() => _filter = 'all'),
                         ),
                         const SizedBox(width: 8),
                         _FilterChip(
                           label: 'Approved',
-                          count: all
-                              .where((a) => a['status'] == 'approved')
-                              .length,
-                          selected: _filter == 'approved',
-                          color: const Color(0xFF10B981),
+                          count: all.where((a) => a['status'] == 'approved').length,
+                          selected: _filter == 'approved', color: const Color(0xFF10B981),
                           onTap: () => setState(() => _filter = 'approved'),
                         ),
                         const SizedBox(width: 8),
                         _FilterChip(
                           label: 'Pending',
-                          count: all
-                              .where((a) => a['status'] == 'pending')
-                              .length,
-                          selected: _filter == 'pending',
-                          color: const Color(0xFFF59E0B),
+                          count: all.where((a) => a['status'] == 'pending').length,
+                          selected: _filter == 'pending', color: const Color(0xFFF59E0B),
                           onTap: () => setState(() => _filter = 'pending'),
                         ),
                         const SizedBox(width: 8),
                         _FilterChip(
                           label: 'Rejected',
-                          count: all
-                              .where((a) => a['status'] == 'rejected')
-                              .length,
-                          selected: _filter == 'rejected',
-                          color: const Color(0xFFEF4444),
+                          count: all.where((a) => a['status'] == 'rejected').length,
+                          selected: _filter == 'rejected', color: const Color(0xFFEF4444),
                           onTap: () => setState(() => _filter = 'rejected'),
                         ),
                       ],
@@ -261,58 +296,50 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                 ),
               ),
 
-              // Recenter Button
+              // Recenter FAB — top right, below filter chips
               Positioned(
-                bottom: 170,
+                top: 140,
                 right: 16,
-                child: FloatingActionButton.small(
-                  heroTag: 'recenter_admin',
-                  backgroundColor: Colors.white,
-                  elevation: 4,
-                  onPressed: () =>
-                      _mapController.move(LatLng(_currentLat, _currentLng), 14),
-                  child: const Icon(
-                    Icons.my_location,
-                    color: Color(0xFF3B82F6),
+                child: SafeArea(
+                  child: FloatingActionButton.small(
+                    heroTag: 'recenter_admin',
+                    backgroundColor: Colors.white,
+                    elevation: 4,
+                    onPressed: () =>
+                        _mapController.move(LatLng(_currentLat, _currentLng), 14),
+                    child: const Icon(Icons.my_location, color: Color(0xFF3B82F6), size: 20),
                   ),
                 ),
               ),
 
-              // Legend
+              // Legend — below recenter with gap
               Positioned(
-                bottom: 100,
+                top: 200,
                 right: 16,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _LegendItem(
-                        color: const Color(0xFF10B981),
-                        label: 'Approved',
-                      ),
-                      const SizedBox(height: 6),
-                      _LegendItem(
-                        color: const Color(0xFFF59E0B),
-                        label: 'Pending',
-                      ),
-                      const SizedBox(height: 6),
-                      _LegendItem(
-                        color: const Color(0xFFEF4444),
-                        label: 'Rejected',
-                      ),
-                    ],
+                child: SafeArea(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _LegendItem(color: const Color(0xFF10B981), label: 'Approved'),
+                        const SizedBox(height: 6),
+                        _LegendItem(color: const Color(0xFFF59E0B), label: 'Pending'),
+                        const SizedBox(height: 6),
+                        _LegendItem(color: const Color(0xFFEF4444), label: 'Rejected'),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -328,7 +355,8 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
     final color = _colors[status] ?? const Color(0xFF10B981);
     final name = area['name'] ?? 'Unnamed';
     final radius = (area['radius'] ?? 0).toInt();
-    final barangayId = area['barangay_id'] ?? '—';
+    final barangayName = area['barangay_name'] ?? area['barangay_id'] ?? '—';
+    final submittedByName = area['submitted_by_name'] ?? '';
     final docId = area['doc_id'] ?? '';
 
     showModalBottomSheet(
@@ -348,44 +376,30 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                 Icon(Icons.location_on, color: color, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
+                  child: Text(name,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     status[0].toUpperCase() + status.substring(1),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: color,
-                    ),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              'Barangay: $barangayId',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-            ),
-            Text(
-              'Radius: ${radius}m',
-              style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280)),
-            ),
+            Text('Barangay: $barangayName',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+            Text('Radius: ${radius}m',
+                style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+            if (submittedByName.isNotEmpty)
+              Text('Submitted by: $submittedByName',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
             const SizedBox(height: 16),
             if (docId.isNotEmpty)
               SizedBox(
@@ -395,19 +409,11 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
                     Navigator.pop(context);
                     _confirmDelete(context, docId, name);
                   },
-                  icon: const Icon(
-                    Icons.delete_outline,
-                    color: Color(0xFFEF4444),
-                  ),
-                  label: const Text(
-                    'Delete Zone',
-                    style: TextStyle(color: Color(0xFFEF4444)),
-                  ),
+                  icon: const Icon(Icons.delete_outline, color: Color(0xFFEF4444)),
+                  label: const Text('Delete Zone', style: TextStyle(color: Color(0xFFEF4444))),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFFEF4444)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -435,16 +441,11 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen> {
               await _fs.deleteRestrictedArea(docId);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Zone deleted'),
-                    backgroundColor: Color(0xFF10B981),
-                  ),
+                  const SnackBar(content: Text('Zone deleted'), backgroundColor: Color(0xFF10B981)),
                 );
               }
             },
-            style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFFEF4444),
-            ),
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
             child: const Text('Delete'),
           ),
         ],
@@ -460,13 +461,7 @@ class _FilterChip extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
 
-  const _FilterChip({
-    required this.label,
-    required this.count,
-    required this.selected,
-    required this.color,
-    required this.onTap,
-  });
+  const _FilterChip({required this.label, required this.count, required this.selected, required this.color, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -478,11 +473,7 @@ class _FilterChip extends StatelessWidget {
           color: selected ? color : Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2)),
           ],
         ),
         child: Text(
@@ -508,16 +499,9 @@ class _LegendItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
-        ),
+        Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
       ],
     );
   }

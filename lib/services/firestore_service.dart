@@ -123,10 +123,8 @@ class FirestoreService {
     required String createdByUid,
   }) async {
     try {
-      // Write user doc — Firebase Auth account created separately via admin SDK
-      // For capstone: we write the Firestore doc directly, auth done client-side
       final newUser = AppUser(
-        uid: email, // temporary, overwritten after auth creation
+        uid: email,
         name: name,
         email: email,
         role: 'barangay_official',
@@ -160,7 +158,7 @@ class FirestoreService {
     required String uid,
     required String title,
     required String body,
-    required String type, // 'approved' | 'rejected' | 'submitted'
+    required String type,
     String areaId = '',
   }) async {
     await _db.collection('notifications').add({
@@ -222,6 +220,7 @@ class FirestoreService {
     required String barangayId,
     required String barangayName,
     required String submittedByUid,
+    required String submittedByName, // ← added
     String remarks = '',
   }) async {
     try {
@@ -234,6 +233,7 @@ class FirestoreService {
         'barangay_id': barangayId,
         'barangay_name': barangayName,
         'submitted_by_uid': submittedByUid,
+        'submitted_by_name': submittedByName, // ← added
         'remarks': remarks,
         'created_at': FieldValue.serverTimestamp(),
         'created_by': submittedByUid,

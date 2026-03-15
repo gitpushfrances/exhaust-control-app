@@ -12,21 +12,39 @@ class SharedProfileScreen extends StatelessWidget {
     final user = auth.appUser;
     final role = user?.role ?? 'rider';
 
+    // Normalize role — handle both 'superadmin' and 'super_admin'
+    final normalizedRole = role.replaceAll('_', '');
+
     final roleLabel =
         {
-          'super_admin': 'Super Admin',
-          'barangay_official': 'Barangay Official',
+          'superadmin': 'Super Admin',
+          'barangayofficial': 'Barangay Official',
           'rider': 'Rider',
-        }[role] ??
+        }[normalizedRole] ??
         'User';
 
     final roleColor =
         {
-          'super_admin': const Color(0xFF8B5CF6),
-          'barangay_official': const Color(0xFF3B82F6),
+          'superadmin': const Color(0xFF6366F1),
+          'barangayofficial': const Color(0xFF3B82F6),
           'rider': const Color(0xFF10B981),
-        }[role] ??
+        }[normalizedRole] ??
         const Color(0xFF6B7280);
+
+    final gradientColors =
+        {
+          'superadmin': [const Color(0xFF6366F1), const Color(0xFF4338CA)],
+          'barangayofficial': [
+            const Color(0xFF3B82F6),
+            const Color(0xFF1D4ED8),
+          ],
+          'rider': [const Color(0xFF10B981), const Color(0xFF059669)],
+        }[normalizedRole] ??
+        [const Color(0xFF6B7280), const Color(0xFF4B5563)];
+
+    final initial = (user?.name.isNotEmpty == true)
+        ? user!.name[0].toUpperCase()
+        : '?';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -34,7 +52,7 @@ class SharedProfileScreen extends StatelessWidget {
         elevation: 0,
         backgroundColor: Colors.white,
         title: const Text(
-          'Profile & Settings',
+          'Profile',
           style: TextStyle(
             color: Color(0xFF111827),
             fontSize: 20,
@@ -45,93 +63,156 @@ class SharedProfileScreen extends StatelessWidget {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────
+            // ── Profile Header Card ───────────────────────────
             Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 36,
-                    backgroundColor: roleColor.withValues(alpha: 0.12),
-                    child: Text(
-                      (user?.name.isNotEmpty == true)
-                          ? user!.name[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: roleColor,
+              margin: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: LinearGradient(
+                  colors: gradientColors,
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradientColors[0].withValues(alpha: 0.35),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Row(
+                  children: [
+                    // Avatar
+                    Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          width: 2,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    user?.name ?? 'Unknown',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    user?.email ?? '',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF6B7280),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: roleColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      roleLabel,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: roleColor,
-                      ),
-                    ),
-                  ),
-                  if (role == 'barangay_official' &&
-                      (user?.barangayName?.isNotEmpty ?? false)) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      user!.barangayName!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF9CA3AF),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            user?.name ?? 'Unknown',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            user?.email ?? '',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.8),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.4),
+                              ),
+                            ),
+                            child: Text(
+                              roleLabel,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ],
+                ),
               ),
             ),
 
-            const SizedBox(height: 16),
-
-            // ── Account Info ─────────────────────────────────────
+            // ── Account Details ───────────────────────────────
             _Section(
-              title: 'Account',
+              title: 'Account Details',
               children: [
-                _Item(
-                  icon: Icons.info_outline,
-                  title: 'About App',
+                _InfoRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Full Name',
+                  value: user?.name ?? '—',
+                  color: roleColor,
+                ),
+                _Divider(),
+                _InfoRow(
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: user?.email ?? '—',
+                  color: roleColor,
+                ),
+                if (normalizedRole == 'barangayofficial') ...[
+                  _Divider(),
+                  _InfoRow(
+                    icon: Icons.location_city_outlined,
+                    label: 'Barangay',
+                    value: user?.barangayName ?? user?.barangayId ?? '—',
+                    color: roleColor,
+                  ),
+                ],
+                _Divider(),
+                _InfoRow(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Role',
+                  value: roleLabel,
+                  color: roleColor,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── App ───────────────────────────────────────────
+            _Section(
+              title: 'App',
+              children: [
+                _ActionRow(
+                  icon: Icons.info_outline_rounded,
+                  title: 'About',
                   subtitle: 'Exhaust Controller v0.7.0',
+                  color: const Color(0xFF3B82F6),
                   onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'Exhaust Control System',
                     applicationVersion: '0.7.0',
                     applicationIcon: const Icon(
-                      Icons.motorcycle,
+                      Icons.two_wheeler_rounded,
                       size: 32,
                       color: Color(0xFF3B82F6),
                     ),
@@ -142,10 +223,12 @@ class SharedProfileScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                _Item(
-                  icon: Icons.help_outline,
+                _Divider(),
+                _ActionRow(
+                  icon: Icons.help_outline_rounded,
                   title: 'Help & Support',
                   subtitle: 'Get help with the app',
+                  color: const Color(0xFF6B7280),
                   onTap: () => ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(const SnackBar(content: Text('Coming soon!'))),
@@ -153,21 +236,31 @@ class SharedProfileScreen extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // ── Logout ───────────────────────────────────────────
-            Container(
-              color: Colors.white,
-              child: _Item(
-                icon: Icons.logout,
-                title: 'Logout',
-                subtitle: 'Sign out and switch accounts',
-                titleColor: const Color(0xFFEF4444),
-                onTap: () => _showLogoutDialog(context),
-              ),
+            // ── Logout ────────────────────────────────────────
+            _Section(
+              title: 'Session',
+              children: [
+                _ActionRow(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign Out',
+                  subtitle: 'Log out of your account',
+                  color: const Color(0xFFEF4444),
+                  titleColor: const Color(0xFFEF4444),
+                  onTap: () => _showLogoutDialog(context),
+                ),
+              ],
             ),
 
             const SizedBox(height: 32),
+
+            // ── Version footer ────────────────────────────────
+            Text(
+              'Exhaust Controller • v0.7.0',
+              style: TextStyle(fontSize: 11, color: const Color(0xFF9CA3AF)),
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -178,12 +271,19 @@ class SharedProfileScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Logout'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Sign Out',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -199,7 +299,7 @@ class SharedProfileScreen extends StatelessWidget {
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFFEF4444),
             ),
-            child: const Text('Logout'),
+            child: const Text('Sign Out'),
           ),
         ],
       ),
@@ -207,7 +307,8 @@ class SharedProfileScreen extends StatelessWidget {
   }
 }
 
-// ── Reusable Section ──────────────────────────────────────────
+// ── Section wrapper ───────────────────────────────────────────
+
 class _Section extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -215,63 +316,142 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF6B7280),
-                letterSpacing: 0.5,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+          child: Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF9CA3AF),
+              letterSpacing: 0.8,
             ),
           ),
-          ...children,
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Info row (non-tappable) ───────────────────────────────────
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF9CA3AF),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF111827),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Reusable Item ─────────────────────────────────────────────
-class _Item extends StatelessWidget {
+// ── Action row (tappable) ─────────────────────────────────────
+
+class _ActionRow extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? subtitle;
-  final VoidCallback? onTap;
+  final String subtitle;
+  final Color color;
   final Color? titleColor;
+  final VoidCallback onTap;
 
-  const _Item({
+  const _ActionRow({
     required this.icon,
     required this.title,
-    this.subtitle,
-    this.onTap,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
     this.titleColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 22,
-                color: titleColor ?? const Color(0xFF6B7280),
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, size: 18, color: color),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,31 +459,44 @@ class _Item extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: titleColor ?? const Color(0xFF111827),
                       ),
                     ),
-                    if (subtitle != null)
-                      Text(
-                        subtitle!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF9CA3AF),
-                        ),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF9CA3AF),
                       ),
+                    ),
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: Color(0xFF9CA3AF),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: const Color(0xFFD1D5DB),
                 size: 20,
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// ── Thin divider ──────────────────────────────────────────────
+
+class _Divider extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(
+      height: 1,
+      indent: 64,
+      endIndent: 0,
+      color: Color(0xFFF3F4F6),
     );
   }
 }

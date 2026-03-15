@@ -149,6 +149,7 @@ class _BarangaySubmitRequestScreenState
       barangayId: official?.barangayId ?? '',
       barangayName: official?.barangayName ?? '',
       submittedByUid: official?.uid ?? '',
+      submittedByName: official?.name ?? '',
       remarks: _remarksController.text.trim(),
     );
 

@@ -15,25 +15,38 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   double _currentLat = 14.5995;
   double _currentLng = 121.0084;
   bool _locationReady = false;
   String _displayAddress = '';
 
   late final MapController _mapController;
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
   StreamSubscription<Position>? _positionStream;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat();
+    _pulseAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+
     _startLocationStream();
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -165,9 +178,9 @@ class _MapScreenState extends State<MapScreen> {
                   return CircleMarker(
                     point: LatLng(area.latitude, area.longitude),
                     radius: area.radius,
-                    color: const Color(0xFFEF4444).withValues(alpha: 0.2),
+                    color: const Color(0xFFEF4444).withValues(alpha: 0.15),
                     borderColor: const Color(0xFFEF4444),
-                    borderStrokeWidth: 2,
+                    borderStrokeWidth: 1.5,
                     useRadiusInMeter: true,
                   );
                 }).toList(),
@@ -176,34 +189,58 @@ class _MapScreenState extends State<MapScreen> {
                 markers: [
                   Marker(
                     point: LatLng(_currentLat, _currentLng),
-                    width: 48,
-                    height: 48,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF3B82F6),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFF3B82F6,
-                            ).withValues(alpha: 0.4),
-                            blurRadius: 12,
-                            spreadRadius: 3,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.motorcycle,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                    width: 40,
+                    height: 40,
+                    child: AnimatedBuilder(
+                      animation: _pulseAnimation,
+                      builder: (context, child) {
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // Outer pulse ring
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF3B82F6).withValues(
+                                  alpha: (1 - _pulseAnimation.value) * 0.3,
+                                ),
+                              ),
+                            ),
+                            // Inner solid dot
+                            Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF3B82F6),
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF3B82F6,
+                                    ).withValues(alpha: 0.4),
+                                    blurRadius: 6,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
             ],
           ),
+
+          // Location overlay — no badge when CLEAR, only shows RESTRICTED
           Positioned(
             top: 16,
             left: 16,
@@ -212,6 +249,22 @@ class _MapScreenState extends State<MapScreen> {
               address: _displayAddress,
               locationReady: _locationReady,
               isRestricted: exhaustProvider.isInRestrictedArea,
+            ),
+          ),
+
+          // Recenter FAB
+          Positioned(
+            bottom: 24,
+            right: 16,
+            child: FloatingActionButton.small(
+              onPressed: _centerOnUser,
+              backgroundColor: Colors.white,
+              elevation: 4,
+              child: const Icon(
+                Icons.my_location,
+                color: Color(0xFF3B82F6),
+                size: 20,
+              ),
             ),
           ),
         ],
@@ -289,34 +342,25 @@ class _LocationInfoOverlay extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: !locationReady
-                  ? const Color(0xFFF59E0B).withValues(alpha: 0.1)
-                  : isRestricted
-                  ? const Color(0xFFEF4444).withValues(alpha: 0.1)
-                  : const Color(0xFF10B981).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              !locationReady
-                  ? '...'
-                  : isRestricted
-                  ? 'RESTRICTED'
-                  : 'CLEAR',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: !locationReady
-                    ? const Color(0xFFF59E0B)
-                    : isRestricted
-                    ? const Color(0xFFEF4444)
-                    : const Color(0xFF10B981),
+          // Only show badge when inside a restricted area
+          if (isRestricted) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Text(
+                'RESTRICTED',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFFEF4444),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

@@ -4,14 +4,13 @@ import '../../providers/bluetooth_provider.dart';
 import '../../providers/exhaust_provider.dart';
 import '../../widgets/bluetooth_connection_modal.dart';
 
-/// Dashboard Screen - Main screen showing exhaust status and controls
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB), // Gray 50
+      backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -23,42 +22,19 @@ class DashboardScreen extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          // Notification Icon
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Color(0xFF6B7280),
-            ),
-            onPressed: () {
-              // TODO: Show notifications
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Bluetooth Connection Card
             _BluetoothConnectionCard(),
             const SizedBox(height: 16),
-
-            // Exhaust Status Card
             _ExhaustStatusCard(),
             const SizedBox(height: 16),
-
-            // Quick Actions
             _QuickActionsSection(),
             const SizedBox(height: 16),
-
-            // Location Info Card
             _LocationInfoCard(),
-            const SizedBox(height: 16),
-
-            // Statistics Summary
-            _StatisticsSummaryCard(),
           ],
         ),
       ),
@@ -66,7 +42,6 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-/// Bluetooth Connection Status Card
 class _BluetoothConnectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -78,13 +53,13 @@ class _BluetoothConnectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: bluetoothProvider.isConnected
-              ? const Color(0xFF10B981) // Success Green
-              : const Color(0xFFEF4444), // Alert Red
+              ? const Color(0xFF10B981)
+              : const Color(0xFFEF4444),
           width: 2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -106,14 +81,13 @@ class _BluetoothConnectionCard extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Bluetooth Icon
                 Container(
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
                     color: bluetoothProvider.isConnected
-                        ? const Color(0xFF10B981).withOpacity(0.1)
-                        : const Color(0xFFEF4444).withOpacity(0.1),
+                        ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                        : const Color(0xFFEF4444).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -127,8 +101,6 @@ class _BluetoothConnectionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Status Text
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,8 +131,6 @@ class _BluetoothConnectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // Signal Strength or Arrow
                 if (bluetoothProvider.isConnected)
                   Column(
                     children: [
@@ -198,12 +168,12 @@ class _BluetoothConnectionCard extends StatelessWidget {
   }
 }
 
-/// Exhaust Status Card - Main status display
 class _ExhaustStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final exhaustProvider = context.watch<ExhaustProvider>();
     final bluetoothProvider = context.watch<BluetoothProvider>();
+    final color = _getStatusColor(exhaustProvider.currentState);
 
     return Container(
       decoration: BoxDecoration(
@@ -211,101 +181,104 @@ class _ExhaustStatusCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
         ],
       ),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Status Label
-          Text(
-            'EXHAUST STATUS',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF6B7280),
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Large Status Icon
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: _getStatusColor(
-                exhaustProvider.currentState,
-              ).withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              _getStatusIcon(exhaustProvider.currentState),
-              size: 64,
-              color: _getStatusColor(exhaustProvider.currentState),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Status Text
-          Text(
-            exhaustProvider.stateLabel,
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: _getStatusColor(exhaustProvider.currentState),
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            exhaustProvider.stateDescription,
-            style: const TextStyle(fontSize: 16, color: Color(0xFF6B7280)),
-          ),
-          const SizedBox(height: 24),
-
-          // Auto Mode Toggle
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
+          // Compact horizontal status row
+          Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _getStatusIcon(exhaustProvider.currentState),
+                  size: 26,
+                  color: color,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      exhaustProvider.isAutoMode
-                          ? Icons.autorenew
-                          : Icons.pan_tool_outlined,
-                      size: 20,
-                      color: const Color(0xFF374151),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      exhaustProvider.isAutoMode ? 'Auto Mode' : 'Manual Mode',
-                      style: const TextStyle(
-                        fontSize: 14,
+                    const Text(
+                      'EXHAUST STATUS',
+                      style: TextStyle(
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF374151),
+                        color: Color(0xFF9CA3AF),
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      exhaustProvider.stateLabel,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      exhaustProvider.stateDescription,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
                       ),
                     ),
                   ],
                 ),
-                Switch(
-                  value: exhaustProvider.isAutoMode,
-                  activeColor: const Color(0xFF3B82F6),
-                  onChanged: bluetoothProvider.isConnected
-                      ? (value) => exhaustProvider.toggleAutoMode()
-                      : null,
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const SizedBox(height: 12),
+
+          // Auto mode toggle
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    exhaustProvider.isAutoMode
+                        ? Icons.autorenew
+                        : Icons.pan_tool_outlined,
+                    size: 18,
+                    color: const Color(0xFF374151),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    exhaustProvider.isAutoMode ? 'Auto Mode' : 'Manual Mode',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                ],
+              ),
+              Switch(
+                value: exhaustProvider.isAutoMode,
+                activeColor: const Color(0xFF3B82F6),
+                onChanged: bluetoothProvider.isConnected
+                    ? (value) => exhaustProvider.toggleAutoMode()
+                    : null,
+              ),
+            ],
           ),
         ],
       ),
@@ -315,11 +288,11 @@ class _ExhaustStatusCard extends StatelessWidget {
   Color _getStatusColor(ExhaustState state) {
     switch (state) {
       case ExhaustState.open:
-        return const Color(0xFF10B981); // Success Green
+        return const Color(0xFF10B981);
       case ExhaustState.closed:
-        return const Color(0xFFEF4444); // Alert Red
+        return const Color(0xFFEF4444);
       case ExhaustState.inactive:
-        return const Color(0xFF9CA3AF); // Gray 400
+        return const Color(0xFF9CA3AF);
     }
   }
 
@@ -335,7 +308,6 @@ class _ExhaustStatusCard extends StatelessWidget {
   }
 }
 
-/// Quick Actions Section
 class _QuickActionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -438,7 +410,6 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-/// Location Info Card
 class _LocationInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -450,7 +421,7 @@ class _LocationInfoCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -463,7 +434,7 @@ class _LocationInfoCard extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFF3B82F6).withOpacity(0.1),
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
@@ -502,7 +473,7 @@ class _LocationInfoCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.1),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Text(
@@ -516,96 +487,6 @@ class _LocationInfoCard extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-/// Statistics Summary Card
-class _StatisticsSummaryCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final exhaustProvider = context.watch<ExhaustProvider>();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Statistics',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _StatItem(
-                  label: 'Total Trips',
-                  value: '${exhaustProvider.totalTrips}',
-                  icon: Icons.route,
-                ),
-              ),
-              Expanded(
-                child: _StatItem(
-                  label: 'Auto Closures',
-                  value: '${exhaustProvider.autoClosures}',
-                  icon: Icons.auto_awesome,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-
-  const _StatItem({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, size: 24, color: const Color(0xFF3B82F6)),
-        const SizedBox(height: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF111827),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
-        ),
-      ],
     );
   }
 }
