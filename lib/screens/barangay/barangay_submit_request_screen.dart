@@ -7,6 +7,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/geo_utils.dart';
 
 class BarangaySubmitRequestScreen extends StatefulWidget {
   const BarangaySubmitRequestScreen({super.key});
@@ -30,6 +31,12 @@ class _BarangaySubmitRequestScreenState
 
   static const List<double> _radiusOptions = [50, 100, 200, 300, 500];
 
+  // Barangay boundary
+  List<dynamic> _boundaryPolygon = [];
+  List<LatLng> _boundaryLatLng = [];
+  bool _isLoadingBoundary = true;
+  String _barangayName = '';
+
   StreamSubscription<Position>? _positionStream;
   double _currentLat = 10.3157;
   double _currentLng = 123.8854;
@@ -38,6 +45,34 @@ class _BarangaySubmitRequestScreenState
   void initState() {
     super.initState();
     _startLocationStream();
+    _loadBoundary();
+  }
+
+  Future<void> _loadBoundary() async {
+    final official = context.read<AuthProvider>().appUser;
+    if (official == null || official.barangayId == null) return;
+
+    final fs = FirestoreService();
+    final data = await fs.getBarangayBoundary(official.barangayId!);
+
+    if (!mounted) return;
+    if (data == null) {
+      setState(() => _isLoadingBoundary = false);
+      return;
+    }
+
+    final polygon = data['boundary_polygon'] as List<dynamic>? ?? [];
+    setState(() {
+      _boundaryPolygon = polygon;
+      _boundaryLatLng = firestorePolygonToLatLng(polygon);
+      _barangayName = data['barangay_name'] ?? '';
+      _isLoadingBoundary = false;
+    });
+
+    // Move map to barangay center
+    final centerLat = (data['center_lat'] as num).toDouble();
+    final centerLng = (data['center_lng'] as num).toDouble();
+    _mapController.move(LatLng(centerLat, centerLng), 14);
   }
 
   void _startLocationStream() {
@@ -70,6 +105,25 @@ class _BarangaySubmitRequestScreenState
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
+    // Block pin drop if boundary not loaded yet
+    if (_isLoadingBoundary) {
+      _showError('Loading barangay boundary, please wait...');
+      return;
+    }
+
+    // Block pin drop if outside barangay boundary
+    if (_boundaryPolygon.isNotEmpty) {
+      final inside = isPointInPolygon(
+        point.latitude,
+        point.longitude,
+        _boundaryPolygon,
+      );
+      if (!inside) {
+        _showError('Pin must be inside $_barangayName only.');
+        return;
+      }
+    }
+
     setState(() {
       _selectedPoint = point;
       _isGeocoding = true;
@@ -199,17 +253,31 @@ class _BarangaySubmitRequestScreenState
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            color: const Color(0xFF3B82F6).withValues(alpha: 0.08),
-            child: const Row(
+            color: _isLoadingBoundary
+                ? const Color(0xFFF59E0B).withValues(alpha: 0.08)
+                : const Color(0xFF3B82F6).withValues(alpha: 0.08),
+            child: Row(
               children: [
-                Icon(Icons.touch_app, color: Color(0xFF3B82F6), size: 16),
-                SizedBox(width: 8),
+                Icon(
+                  _isLoadingBoundary
+                      ? Icons.hourglass_empty_rounded
+                      : Icons.touch_app_rounded,
+                  color: _isLoadingBoundary
+                      ? const Color(0xFFF59E0B)
+                      : const Color(0xFF3B82F6),
+                  size: 16,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Tap map to pin location • Request goes to admin for approval',
+                    _isLoadingBoundary
+                        ? 'Loading your barangay boundary...'
+                        : 'Tap inside the blue boundary to pin location',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF3B82F6),
+                      color: _isLoadingBoundary
+                          ? const Color(0xFFF59E0B)
+                          : const Color(0xFF3B82F6),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -237,6 +305,20 @@ class _BarangaySubmitRequestScreenState
                       userAgentPackageName:
                           'com.example.exhaust_controller_app',
                     ),
+                    // Barangay boundary polygon
+                    if (_boundaryLatLng.isNotEmpty)
+                      PolygonLayer(
+                        polygons: [
+                          Polygon(
+                            points: _boundaryLatLng,
+                            color: const Color(
+                              0xFF3B82F6,
+                            ).withValues(alpha: 0.08),
+                            borderColor: const Color(0xFF3B82F6),
+                            borderStrokeWidth: 2.0,
+                          ),
+                        ],
+                      ),
                     // Selected zone circle + pin
                     if (_selectedPoint != null) ...[
                       CircleLayer(

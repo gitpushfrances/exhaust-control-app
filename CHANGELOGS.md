@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.7.0] - Phase 7: Multi-Role System Expansion
 
-**Status:** 🔄 IN PROGRESS (~95% of phase complete)
+**Status:** 🔄 IN PROGRESS (~98% of phase complete)
 **Date Started:** March 2026
 
 ### 🎯 What This Phase Will Achieve:
@@ -32,12 +32,108 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 | 7.12 | Create `BarangayNavigationScreen` + 4 skeleton screens | None | ✅ Done |
 | 7.13 | Build Barangay Home Dashboard (zone stats, request summary) | None | ✅ Done |
 | 7.14 | Build Submit Request screen (real logic — submits pending to Firestore) | None | ✅ Done |
-| 7.15 | Implement barangay boundary check — Option A circle (Haversine reuse) | None | ⏳ Pending |
+| 7.15 | Implement barangay boundary check — polygon point-in-polygon (GeoJSON) | None | ✅ Done |
 | 7.16 | Build My Requests screen — 3 inner tabs (Pending / Approved / Rejected) | None | ✅ Done |
 | 7.17 | Build Notifications screen + bell icon on Barangay Home | None | ✅ Done |
 | 7.18 | Write Firestore notification documents on approve / reject / submit events | Low | ✅ Done |
 | 7.19 | Tighten Firestore security rules (all roles) | **HIGH** | ⏳ Pending |
 | 7.20 | Add FCM push notifications (optional, add last) | Low | ⏳ Pending |
+
+---
+
+### ✅ Completed This Session — Barangay Geofencing + Data Seeding (March 18, 2026)
+
+---
+
+#### Feature — Barangay Boundary Geofencing (Step 7.15) — COMPLETED
+- **Approach:** Upgraded from Option A (Haversine circle) to Option B (real polygon boundaries from GeoJSON)
+- **Data Source:** `faeldon/philippines-json-maps` repo — `bgysubmuns` GeoJSON files (barangay level, lowres)
+- **Coverage:** All 26 municipalities of Eastern Samar — 934 barangays total
+- **Province PSGC:** `806000000` (Eastern Samar, Region VIII)
+
+#### Infrastructure — Firestore `/barangays` Collection Seeded
+- **New collection:** `/barangays/{barangay_id}` — 934 documents uploaded
+- **ID format:** Custom hierarchical format `08-MUN-BRG` (e.g. `08-001-001`)
+  - `08` = Eastern Samar province code
+  - `001` = municipality index (3-digit padded)
+  - `001` = barangay index within municipality (3-digit padded)
+- **Fields per document:**
+  - `barangay_id` — custom ID string
+  - `barangay_name` — human-readable name (e.g. "Bacjao")
+  - `municipality_name` — parent municipality (e.g. "Arteche")
+  - `municipality_psgc` — official PSGC code (e.g. `806001000`)
+  - `barangay_psgc` — official PSGC code for barangay
+  - `province` — "Eastern Samar"
+  - `region` — "Region VIII"
+  - `center_lat` / `center_lng` — auto-calculated centroid from polygon
+  - `boundary_polygon` — array of `{lat, lng}` objects from GeoJSON coordinates
+  - `boundary_radius_m` — 2000m fallback circle radius
+  - `official_uid` — null (assigned when official is created)
+  - `is_active` — true
+  - `created_at` — server timestamp
+- **Seeding tool:** `seed_barangays.js` (Node.js, firebase-admin) — runs once, idempotent
+- **Municipality coverage:**
+
+| Index | Municipality | Barangays |
+|-------|-------------|-----------|
+| 001 | Arteche | 23 |
+| 002 | Balangiga | 51 |
+| 003 | Balangkayan | 157 |
+| 004 | Borongan City | 41 |
+| 005 | Can-avid | 57 |
+| 006 | Dolores | 58 |
+| 007 | General MacArthur | 69 |
+| 008 | Giporlos | 21 |
+| 009 | Guiuan | 34 |
+| 010 | Hernani | 24 |
+| 011 | Jipapad | 20 |
+| 012 | Lawaan | 30 |
+| 013 | Llorente | 24 |
+| 014 | Maslog | 14 |
+| 015 | Maydolong | 14 |
+| 016 | Mercedes | 36 |
+| 017 | Oras | 38 |
+| 018 | Quinapondan | 13 |
+| 019 | Salcedo | 11 |
+| 020 | San Julian | 41 |
+| 021 | San Policarpo | 38 |
+| 022 | Sulat | 44 |
+| 023 | Taft | 25 |
+| 024–026 | Sub-municipalities | 68 |
+| **Total** | **26 files** | **934** |
+
+#### New File — `lib/utils/geo_utils.dart`
+- **Added:** `isPointInPolygon(lat, lng, polygon)` — ray casting algorithm, pure Dart, no packages
+- **Added:** `firestorePolygonToLatLng(polygon)` — converts Firestore `{lat, lng}` array to `List<LatLng>` for flutter_map
+- **Notes:** Zero external dependencies — reuses existing `latlong2` package only
+
+#### Feature — `FirestoreService.getBarangayBoundary()`
+- **Added:** `getBarangayBoundary(String barangayId)` method to `firestore_service.dart`
+- **Returns:** Full barangay document map including `boundary_polygon`, `center_lat`, `center_lng`, `barangay_name`
+- **Used by:** `barangay_submit_request_screen.dart` only — admin and rider untouched
+
+#### Feature — `barangay_submit_request_screen.dart` updated
+- **Added:** `_loadBoundary()` — fetches official's assigned barangay polygon from Firestore on init
+- **Added:** `_boundaryPolygon` — raw Firestore polygon for point-in-polygon check
+- **Added:** `_boundaryLatLng` — converted `List<LatLng>` for map rendering
+- **Added:** `_isLoadingBoundary` — loading state, blocks pin drop while fetching
+- **Added:** `_barangayName` — used in error message
+- **Updated:** `_onMapTap()` — runs `isPointInPolygon()` on every pin drop, blocks + shows error if outside boundary
+- **Updated:** Info banner — shows loading state (amber) vs ready state (blue) with appropriate icon
+- **Added:** `PolygonLayer` on map — draws official's barangay boundary as dashed blue polygon
+- **Updated:** Map auto-centers on barangay centroid on load instead of device GPS position
+- **Impact:** Barangay official can only drop pins inside their assigned barangay — enforced client-side
+
+#### Patch — Notification title strings cleaned
+- **Removed:** Emoji from `'Zone Approved ✅'` → `'Zone Approved'`
+- **Removed:** Emoji from `'Zone Rejected ❌'` → `'Zone Rejected'`
+- **File:** `lib/services/firestore_service.dart`
+- **Reason:** Consistent clean text across notification system — icons handled by UI layer
+
+#### Tooling — Seeding Scripts (project root, not committed to production)
+- **Added:** `seed_barangays.js` — seeds `/barangays` collection from Eastern Samar GeoJSON files
+- **Added:** `eastern_samar_barangays/` — 26 filtered GeoJSON files (one per municipality)
+- **Note:** `serviceAccountKey.json` is gitignored — never commit to repo
 
 ---
 
@@ -176,39 +272,39 @@ lib/
 │   ├── signup_screen.dart
 │   ├── splash_screen.dart
 │   ├── shared/
-│   │   └── shared_profile_screen.dart     ✅ redesigned
+│   │   └── shared_profile_screen.dart         ✅ redesigned
 │   ├── rider/
-│   │   ├── main_navigation_screen.dart    ✅ pro nav rebuilt
-│   │   ├── dashboard_screen.dart          ✅ stats removed, compact status
-│   │   ├── map_screen.dart                ✅ GPS dot, no CLEAR badge
+│   │   ├── main_navigation_screen.dart        ✅ pro nav rebuilt
+│   │   ├── dashboard_screen.dart              ✅ stats removed, compact status
+│   │   ├── map_screen.dart                    ✅ GPS dot, no CLEAR badge
 │   │   └── profile_screen.dart
 │   ├── admin/
-│   │   ├── admin_navigation_screen.dart   ✅ pro nav + pending badge
-│   │   ├── admin_home_screen.dart         ✅ full dashboard + geocoding
-│   │   ├── admin_request_inbox_screen.dart ✅ live
-│   │   ├── admin_request_detail_screen.dart ✅ live + patched
+│   │   ├── admin_navigation_screen.dart       ✅ pro nav + pending badge
+│   │   ├── admin_home_screen.dart             ✅ full dashboard + geocoding
+│   │   ├── admin_request_inbox_screen.dart    ✅ live
+│   │   ├── admin_request_detail_screen.dart   ✅ live + patched
 │   │   ├── admin_manage_officials_screen.dart ✅ live
-│   │   ├── admin_create_official_screen.dart ✅ live
-│   │   └── admin_global_map_screen.dart   ✅ pin markers + top controls
+│   │   ├── admin_create_official_screen.dart  ✅ live
+│   │   └── admin_global_map_screen.dart       ✅ pin markers + top controls
 │   └── barangay/
-│       ├── barangay_navigation_screen.dart ✅ pro nav rebuilt
-│       ├── barangay_home_screen.dart       ✅ live
-│       ├── barangay_submit_request_screen.dart ✅ submits submitted_by_name
-│       ├── barangay_my_requests_screen.dart ✅ live
+│       ├── barangay_navigation_screen.dart    ✅ pro nav rebuilt
+│       ├── barangay_home_screen.dart          ✅ live
+│       ├── barangay_submit_request_screen.dart ✅ polygon boundary check + map overlay
+│       ├── barangay_my_requests_screen.dart   ✅ live
 │       ├── barangay_notifications_screen.dart ✅ live + indexes fixed
-│       └── barangay_profile_screen.dart   ⏳ uses shared profile
+│       └── barangay_profile_screen.dart       ⏳ uses shared profile
 └── utils/
     ├── app_colors.dart
     ├── app_text_styles.dart
-    └── permission_handler.dart
+    ├── permission_handler.dart
+    └── geo_utils.dart                         ✅ NEW — point-in-polygon + polygon converter
 ```
 
 ---
 
 ### ⚠️ Still Pending in Phase 7
 - [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-- [ ] **7.15** — Barangay boundary check (Haversine — verify official submits only within their barangay)
-- [ ] **7.19** — ⚠️ Firestore security rules (HIGH RISK — do last before demo)
+- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
 - [ ] **7.20** — FCM push notifications (optional)
 
 ---
@@ -283,11 +379,12 @@ lib/
 | 0.6.0 | Map | ✅ Complete | Feb 17, 2026 |
 | 0.6.1 | Patches & Background GPS | ✅ Complete | Mar 5, 2026 |
 | 0.7.0 (patch 1) | Multi-Role Foundation + Admin/Barangay Screens | ✅ Complete | Mar 9, 2026 |
-| **0.7.0 (patch 2)** | **Notifications, UI/UX Polish, Pro Nav, Profile Redesign** | **✅ Complete** | **Mar 15, 2026** |
-| 0.7.0 (final) | Boundary Check + Security Rules | 🔄 Next | Mar 2026 |
+| 0.7.0 (patch 2) | Notifications, UI/UX Polish, Pro Nav, Profile Redesign | ✅ Complete | Mar 15, 2026 |
+| **0.7.0 (patch 3)** | **Barangay Geofencing + GeoJSON Seeding + Boundary Check** | **✅ Complete** | **Mar 18, 2026** |
+| 0.7.0 (final) | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
 | 0.8.0 | Core Automation (BLE) | ⏸️ Blocked on ESP32 UUIDs | TBD |
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** March 15, 2026
+**Last Updated:** March 18, 2026

@@ -268,6 +268,19 @@ class FirestoreService {
     );
   }
 
+  // ─── Barangay Boundary ────────────────────────────────────────
+
+  Future<Map<String, dynamic>?> getBarangayBoundary(String barangayId) async {
+    try {
+      final doc = await _db.collection('barangays').doc(barangayId).get();
+      if (!doc.exists) return null;
+      return doc.data();
+    } catch (e) {
+      print('Error fetching barangay boundary: $e');
+      return null;
+    }
+  }
+
   // ─── Admin: All Areas (Global Map) ───────────────────────────
 
   Stream<List<Map<String, dynamic>>> streamAllAreas() {
@@ -312,7 +325,7 @@ class FirestoreService {
       if (submittedBy.isNotEmpty) {
         await createNotification(
           uid: submittedBy,
-          title: 'Zone Approved ✅',
+          title: 'Zone Approved',
           body: '"$name" has been approved and is now active.',
           type: 'approved',
           areaId: docId,
@@ -344,7 +357,7 @@ class FirestoreService {
       if (submittedBy.isNotEmpty) {
         await createNotification(
           uid: submittedBy,
-          title: 'Zone Rejected ❌',
+          title: 'Zone Rejected',
           body: '"$name" was rejected. Reason: $reason',
           type: 'rejected',
           areaId: docId,
