@@ -214,15 +214,15 @@ class _AdminRequestDetailScreenState extends State<AdminRequestDetailScreen> {
     if (!mounted) return;
     setState(() => _isProcessing = false);
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
           content: Text('Zone approved — now live on all rider maps'),
           backgroundColor: Color(0xFF10B981),
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(this.context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(this.context).showSnackBar(
         const SnackBar(
           content: Text('Failed to approve. Try again.'),
           backgroundColor: Color(0xFFEF4444),
@@ -292,13 +292,13 @@ class _AdminRequestDetailScreenState extends State<AdminRequestDetailScreen> {
                   if (!mounted) return;
                   setState(() => _isProcessing = false);
                   if (success) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(this.context).showSnackBar(
                       const SnackBar(
                         content: Text('Request rejected'),
                         backgroundColor: Color(0xFFEF4444),
                       ),
                     );
-                    Navigator.pop(context);
+                    Navigator.pop(this.context);
                   }
                 },
                 style: ElevatedButton.styleFrom(

@@ -19,20 +19,15 @@ class AppPermissionHandler {
   static Future<bool> requestAllPermissions(BuildContext context) async {
     // 1. Bluetooth
     final bluetoothGranted = await _requestBluetoothPermissions(context);
-    if (!bluetoothGranted) {
-      if (!context.mounted) return false;
-      return false;
-    }
+    if (!bluetoothGranted) return false;
+    if (!context.mounted) return false;
 
     // 2. Foreground location (must come before background)
     final locationGranted = await _requestLocationPermission(context);
-    if (!locationGranted) {
-      if (!context.mounted) return false;
-      return false;
-    }
+    if (!locationGranted) return false;
+    if (!context.mounted) return false;
 
     // 3. Background location (only ask after foreground is granted)
-    if (!context.mounted) return false;
     await _requestBackgroundLocationPermission(context);
 
     // Background location is non-blocking — app works without it,
@@ -130,12 +125,10 @@ class AppPermissionHandler {
       btnOkText: 'Continue',
       btnCancelText: 'Skip',
       btnOkOnPress: () async {
-        final status = await Permission.locationAlways.request();
+        await Permission.locationAlways.request();
         // On Android 11+, this opens Settings — user must manually allow.
         // On Android 10, system dialog appears inline.
-        if (!status.isGranted && context.mounted) {
-          // Silently continue — foreground location still works
-        }
+        // Silently continue either way — foreground location still works
       },
       btnCancelOnPress: () {
         // GPS works in foreground only — acceptable degraded mode
