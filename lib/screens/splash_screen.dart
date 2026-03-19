@@ -53,14 +53,9 @@ class _SplashScreenState extends State<SplashScreen>
     // Wait for splash animation
     await Future.delayed(const Duration(milliseconds: 1500));
 
-    print('>>> Splash: mounted = $mounted');
     if (!mounted) return;
 
-    print('>>> Splash: requesting permissions now');
-    final permissionsGranted = await AppPermissionHandler.requestAllPermissions(
-      context,
-    );
-    print('>>> Splash: permissions result = $permissionsGranted');
+    await AppPermissionHandler.requestAllPermissions(context);
 
     // Small delay for UX
     await Future.delayed(const Duration(milliseconds: 500));
