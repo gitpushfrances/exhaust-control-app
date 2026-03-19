@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/restricted_area.dart';
 import '../models/app_user.dart';
 
@@ -13,7 +14,7 @@ class FirestoreService {
       if (!doc.exists) return null;
       return AppUser.fromMap(uid, doc.data()!);
     } catch (e) {
-      print('Error fetching user: $e');
+      debugPrint('Error fetching user: $e');
       return null;
     }
   }
@@ -40,7 +41,7 @@ class FirestoreService {
       final ref = await _db.collection('restricted_areas').add(area.toMap());
       return ref.id;
     } catch (e) {
-      print('Error adding restricted area: $e');
+      debugPrint('Error adding restricted area: $e');
       return null;
     }
   }
@@ -50,7 +51,7 @@ class FirestoreService {
       await _db.collection('restricted_areas').doc(docId).delete();
       return true;
     } catch (e) {
-      print('Error deleting restricted area: $e');
+      debugPrint('Error deleting restricted area: $e');
       return false;
     }
   }
@@ -137,7 +138,7 @@ class FirestoreService {
       await _db.collection('users').add(newUser.toMap());
       return true;
     } catch (e) {
-      print('Error creating official: $e');
+      debugPrint('Error creating official: $e');
       return false;
     }
   }
@@ -147,7 +148,7 @@ class FirestoreService {
       await _db.collection('users').doc(uid).update({'is_active': isActive});
       return true;
     } catch (e) {
-      print('Error updating official status: $e');
+      debugPrint('Error updating official status: $e');
       return false;
     }
   }
@@ -240,7 +241,7 @@ class FirestoreService {
       });
       return true;
     } catch (e) {
-      print('Error submitting request: $e');
+      debugPrint('Error submitting request: $e');
       return false;
     }
   }
@@ -268,6 +269,74 @@ class FirestoreService {
     );
   }
 
+  // ─── Barangay Management ─────────────────────────────────────
+
+  Future<List<Map<String, dynamic>>> getBarangaysByMunicipality(
+    String municipality,
+  ) async {
+    try {
+      final snap = await _db
+          .collection('barangays')
+          .where('municipality_name', isEqualTo: municipality)
+          .get();
+      return snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList();
+    } catch (e) {
+      debugPrint('Error fetching barangays: $e');
+      return [];
+    }
+  }
+
+  Future<List<String>> getMunicipalities() async {
+    try {
+      final snap = await _db.collection('barangays').get();
+      final municipalities =
+          snap.docs
+              .map((d) => d.data()['municipality_name'] as String? ?? '')
+              .where((m) => m.isNotEmpty)
+              .toSet()
+              .toList()
+            ..sort();
+      return municipalities;
+    } catch (e) {
+      debugPrint('Error fetching municipalities: $e');
+      return [];
+    }
+  }
+
+  Future<AppUser?> getOfficialByBarangayId(String barangayId) async {
+    try {
+      final snap = await _db
+          .collection('users')
+          .where('role', isEqualTo: 'barangay_official')
+          .where('barangay_id', isEqualTo: barangayId)
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      final doc = snap.docs.first;
+      return AppUser.fromMap(doc.id, doc.data());
+    } catch (e) {
+      debugPrint('Error fetching official by barangay: $e');
+      return null;
+    }
+  }
+
+  Future<bool> updateOfficialBarangay({
+    required String officialUid,
+    required String barangayId,
+    required String barangayName,
+  }) async {
+    try {
+      await _db.collection('users').doc(officialUid).update({
+        'barangay_id': barangayId,
+        'barangay_name': barangayName,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('Error updating official barangay: $e');
+      return false;
+    }
+  }
+
   // ─── Barangay Boundary ────────────────────────────────────────
 
   Future<Map<String, dynamic>?> getBarangayBoundary(String barangayId) async {
@@ -276,7 +345,7 @@ class FirestoreService {
       if (!doc.exists) return null;
       return doc.data();
     } catch (e) {
-      print('Error fetching barangay boundary: $e');
+      debugPrint('Error fetching barangay boundary: $e');
       return null;
     }
   }
@@ -333,7 +402,7 @@ class FirestoreService {
       }
       return true;
     } catch (e) {
-      print('Error approving request: $e');
+      debugPrint('Error approving request: $e');
       return false;
     }
   }
@@ -365,7 +434,7 @@ class FirestoreService {
       }
       return true;
     } catch (e) {
-      print('Error rejecting request: $e');
+      debugPrint('Error rejecting request: $e');
       return false;
     }
   }

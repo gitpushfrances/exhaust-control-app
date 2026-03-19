@@ -50,6 +50,7 @@ dependencies:
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   geocoding: ^4.0.0
+  flutter_bluetooth_serial: ^0.4.0
 
 
 dev_dependencies:

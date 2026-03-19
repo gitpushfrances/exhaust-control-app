@@ -2,30 +2,31 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** March 15, 2026
+**Last Updated:** March 19, 2026
 
 ---
 
-## 🎯 Overall Progress: ~88% Complete
+## 🎯 Overall Progress: ~91% Complete
 
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
-> Phase 7 is now ~95% done — all screens built, notifications wired, UI fully polished. Only boundary check + security rules remain.
+> Phase 7 is ~98% done. HC-05 hardware validated — relay clicks on OPEN/CLOSE. Phase 8 is now unblocked.
 
 ```
-[████████████████████████████░░░░] 88%
+[█████████████████████████████░░░] 91%
 ```
 
 ### Scope Breakdown:
 | Scope | Progress | Notes |
 |-------|----------|-------|
-| Rider functionality | ~98% | All screens done, stats removed, GPS dot map, compact UI ✅ |
+| Rider functionality | ~98% | All screens done, GPS dot map, compact UI ✅ |
 | Phase 7 foundation (models, routing, structure) | 100% | Steps 7.1–7.7, 7.12 done ✅ |
 | Super Admin screens | 100% | Dashboard, Inbox, Detail, Officials, Global Map — all live + polished ✅ |
-| Barangay Official screens | ~95% | All screens live; notifications working; boundary check pending |
+| Barangay Official screens | ~98% | All screens live, notifications working, boundary check done ✅ |
 | Notification system | 100% | In-app notifications fully wired end-to-end ✅ |
 | UI/UX Polish | 100% | All 3 roles — pro navbars, profile redesign, map improvements ✅ |
 | End-to-end flow | ✅ Working | Submit → Admin inbox → Approve/Reject → Rider map + Official notification |
-| Phase 8 BLE Automation | 0% | Blocked on ESP32 UUIDs |
+| HC-05 Hardware Validation | 100% | Two-way comms confirmed, relay clicks ✅ |
+| Phase 8 BLE Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
 
 ---
 
@@ -33,14 +34,39 @@
 
 ---
 
-### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~95% of phase complete)
+### ✅ PHASE 7.1: HC-05 HARDWARE VALIDATION (100% Complete)
+
+**Status:** ✅ COMPLETE — March 19, 2026
+
+| Task | Status |
+|------|--------|
+| Add `flutter_bluetooth_serial` package | ✅ Done |
+| Fix `build.gradle` namespace AGP issue | ✅ Done |
+| Create `bt_classic_test_screen.dart` | ✅ Done |
+| Add dev test button to rider dashboard | ✅ Done |
+| Configure HC-05 baud rate via AT commands (9600) | ✅ Done |
+| Wire HC-05 TX→Pin6, RX→Pin7, Relay→Pin8 | ✅ Done |
+| Validate Flutter → Arduino command receive | ✅ Done |
+| Validate Arduino → Flutter ACK response | ✅ Done |
+| Validate relay actuation on OPEN/CLOSE | ✅ Done |
+
+#### Key Technical Details:
+- **HC-05 baud:** 9600 (permanently set via AT+UART=9600,0,0)
+- **SoftwareSerial pins:** RX=6, TX=7
+- **Relay pin:** 8 — LOW=open, HIGH=closed
+- **Command matching:** `indexOf()` — handles hidden `\r\n` from Flutter serial
+- **Package fix:** Patched `flutter_bluetooth_serial` cache `build.gradle` — namespace + compileSdkVersion 34 + mavenCentral
+
+---
+
+### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~98% of phase complete)
 
 **Status:** 🔄 IN PROGRESS
 **Date Started:** March 2026
 
 #### Progress:
 ```
-[██████████████████████████████░░] ~95% of phase
+[████████████████████████████████] ~98% of phase
 ```
 
 #### Step Checklist:
@@ -55,16 +81,16 @@
 
 **Group B — Admin screens**
 - [x] 7.7 — `AdminNavigationScreen` + skeleton screens ✅
-- [x] 7.8 — Admin Home Dashboard (stat cards + recent activity + geocoding) ✅
+- [x] 7.8 — Admin Home Dashboard ✅
 - [x] 7.9 — Request Inbox + Detail + Approve/Reject ✅
 - [x] 7.10 — Manage Officials + Create Official form ✅
-- [x] 7.11 — Admin Global Map (filter chips, pin markers, legend, recenter) ✅
+- [x] 7.11 — Admin Global Map ✅
 
 **Group C — Barangay Official screens**
 - [x] 7.12 — `BarangayNavigationScreen` + skeleton screens ✅
-- [x] 7.13 — Barangay Home Dashboard (stats + recent requests) ✅
-- [x] 7.14 — Submit Request screen (real pending submission + submitted_by_name) ✅
-- [ ] 7.15 — ⏳ Barangay boundary check (Haversine)
+- [x] 7.13 — Barangay Home Dashboard ✅
+- [x] 7.14 — Submit Request screen ✅
+- [x] 7.15 — Barangay boundary check (GeoJSON polygon) ✅
 - [x] 7.16 — My Requests (3 tabs: Pending / Approved / Rejected) ✅
 - [x] 7.17 — Notifications screen + bell icon ✅
 
@@ -75,119 +101,54 @@
 
 ---
 
-### ✅ What Was Done This Session — UI/UX Polish + Notification Fix (March 15, 2026)
-
-| File / Area | Change | Type |
-|-------------|--------|------|
-| Firebase Console — Indexes | Created 2 notification indexes: `uid+created_at`, `uid+is_read` | 🔧 Fix |
-| `lib/services/firestore_service.dart` | Added `submittedByName` param + `submitted_by_name` field to `submitZoneRequest()` | ✏️ Updated |
-| `lib/screens/barangay/barangay_submit_request_screen.dart` | Added `submittedByName: official?.name` to submit call | 🔧 Fix |
-| `lib/screens/admin/admin_home_screen.dart` | Full rebuild — welcome card, stat cards, reverse-geocoded area list, officials overview | ✏️ Updated |
-| `lib/screens/admin/admin_navigation_screen.dart` | Replaced with custom `_ProNavBar` — pill highlight, live pending badge | ✏️ Updated |
-| `lib/screens/admin/admin_global_map_screen.dart` | Pin markers, pulsing GPS dot, recenter + legend moved to top-right | ✏️ Updated |
-| `lib/screens/rider/dashboard_screen.dart` | Removed stats card, removed bell icon, compact exhaust status | ✏️ Updated |
-| `lib/screens/rider/map_screen.dart` | Pulsing GPS dot, removed CLEAR badge, added recenter FAB | ✏️ Updated |
-| `lib/screens/rider/main_navigation_screen.dart` | Replaced with `_ProNavBar` — compact, pill highlight, rounded icons | ✏️ Updated |
-| `lib/screens/barangay/barangay_navigation_screen.dart` | Replaced with `_ProNavBar` — clean icons, notification badge | ✏️ Updated |
-| `lib/screens/shared/shared_profile_screen.dart` | Full redesign — gradient header card, info rows, sections, role fix | ✏️ Updated |
-
-#### Bugs Fixed This Session
-| Bug | Root Cause | Fix |
-|-----|-----------|-----|
-| Notifications screen showing empty | Missing Firestore composite indexes on `notifications` collection | Created 2 indexes in Firebase Console |
-| Official name showing as UID in admin dashboard | `submitted_by_name` field not written on submit | Added field to `submitZoneRequest()` and submit call |
-| Super Admin profile showing "User" label | Role key mismatch — code used `"super_admin"`, Firestore stores `"superadmin"` | Normalized with `.replaceAll('_', '')` before map lookup |
-| Admin map showing target/crosshair icon for user location | Old `Icons.my_location` inside a Container used as marker | Replaced with pulsing animated GPS dot using `AnimationController` |
-| Rider map showing large motorcycle icon | `Icons.motorcycle` in a blue circle — too big and unprofessional | Replaced with 14px pulsing blue dot with white border |
-
----
-
-### ✅ What Was Done Previously — Patches & Fixes (March 9, 2026)
-
-| File / Area | Change | Type |
-|-------------|--------|------|
-| `lib/models/restricted_area.dart` | Fixed `fromMap()` — Timestamp-aware date parser | 🔧 Fix |
-| Firebase Console — Indexes | 3 composite indexes for `restricted_areas` | 🔧 Fix |
-| Firebase Console — Data | Deleted 3 legacy documents with wrong schema | 🔧 Fix |
-| `lib/screens/admin/admin_request_detail_screen.dart` | Converted to `StatefulWidget` with `_isProcessing` guard | 🔧 Fix |
-| `lib/screens/admin/admin_global_map_screen.dart` | Added live location stream, blue dot, recenter FAB | ✏️ Updated |
-| `lib/screens/barangay/barangay_submit_request_screen.dart` | Added live location stream, blue dot, recenter FAB | ✏️ Updated |
-
----
-
 ### ⚠️ Immediate Next Actions (Phase 7 tail)
 1. **Step 7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-2. **Step 7.15** — Barangay boundary check using Haversine
-3. **Step 7.19** — Tighten Firestore security rules (do last, high risk)
-4. **Step 7.20** — FCM push notifications (optional)
+2. **Step 7.19** — Tighten Firestore security rules (do last, high risk)
+3. **Step 7.20** — FCM push notifications (optional)
 
 ---
 
-### 🔜 NEXT PHASE — Phase 8: Core BLE Automation
+### 🔜 NEXT PHASE — Phase 8: Core HC-05 Automation
 
-**Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
+**Status:** 🟡 UNBLOCKED — hardware validated March 19, 2026
 
-| Task | Notes |
-|------|-------|
-| Obtain ESP32 Service UUID + Characteristic UUID | From hardware team |
-| Define OPEN/CLOSE byte command protocol | Agree with hardware team |
-| Wire `ExhaustProvider` — send `CLOSE` on geofence entry | Uses existing Haversine check |
-| Wire `ExhaustProvider` — send `OPEN` on geofence exit | |
-| Log auto-closure events to Firestore | For audit trail |
-| End-to-end test on device | Rider enters zone → BLE fires → valve closes |
+| Step | Task | Status |
+|------|------|--------|
+| 8.1 | Create `ClassicBluetoothService` — wraps HC-05 connection + send | ⏳ Next |
+| 8.2 | Wire `ExhaustProvider` — send `CLOSE` on geofence entry | ⏳ Next |
+| 8.3 | Wire `ExhaustProvider` — send `OPEN` on geofence exit | ⏳ Next |
+| 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT | ⏳ Next |
+| 8.5 | Log auto-closure events to Firestore | ⏳ Next |
+| 8.6 | End-to-end test — enter zone → relay clicks → valve closes | ⏳ Next |
+| 8.7 | Remove `_DevTestButton` + `bt_classic_test_screen.dart` from build | ⏳ Next |
 
 ---
 
 ### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete)
 **Status:** ✅ COMPLETE — March 5, 2026
 
----
-
 ### ✅ PHASE 6: MAP INTEGRATION (100% Complete)
 **Status:** ✅ COMPLETE — February 17, 2026
-
----
 
 ### ✅ PHASE 5: GPS & LOCATION SERVICES (100% Complete)
 **Status:** ✅ COMPLETE — February 17, 2026
 
----
-
 ### ✅ PHASE 4: BLUETOOTH INTEGRATION (100% Complete)
 **Status:** ✅ COMPLETE — February 17, 2026
-
----
 
 ### ✅ PHASE 3: DEVICE PERMISSIONS (100% Complete)
 **Status:** ✅ COMPLETE — February 11, 2026
 
----
-
 ### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
 **Status:** ✅ COMPLETE — February 11, 2026
-
----
 
 ### 🔄 PHASE 1: UI/UX FOUNDATION (80% Complete)
 - [x] Color system, typography, CustomButton, CustomTextField
 - [x] Branded splash, login/signup screens
 - [ ] ⏳ Logo integration (waiting for asset)
 
----
-
 ### ✅ PHASE 0: FOUNDATION (100% Complete)
 Firebase Auth, Provider, basic routing, core screens.
-
----
-
-### ⏸️ PHASE 8: CORE AUTOMATION (0% — Blocked)
-**Status:** ⏸️ BLOCKED — waiting on ESP32 BLE UUIDs from hardware team
-
-- [ ] ESP32 BLE Service UUID + Characteristic UUID
-- [ ] OPEN/CLOSE command protocol
-- [ ] Send valve CLOSE on geofence entry
-- [ ] Send valve OPEN on geofence exit
-- [ ] Auto-closure log history
 
 ---
 
@@ -203,6 +164,7 @@ shared_preferences: ^2.5.4
 
 # Hardware
 flutter_blue_plus: 1.31.15
+flutter_bluetooth_serial: ^0.4.0   # NEW — HC-05 Classic BT
 geolocator: ^14.0.2
 permission_handler: ^12.0.1
 device_info_plus: ^10.1.0
@@ -238,10 +200,12 @@ flutter_launcher_icons: ^0.14.1
 | 8 | Role Foundation (models, routing, structure) | ✅ Done | Mar 9 |
 | 9 | Admin Screens Complete | ✅ Done | Mar 9 |
 | 10 | Barangay Screens (core) | ✅ Done | Mar 9 |
-| 11 | End-to-end flow verified (Submit → Approve → Rider map) | ✅ Done | Mar 9 |
-| 12 | Notifications fully wired + UI/UX Polish (all 3 roles) | ✅ Done | Mar 15 |
-| 13 | Boundary Check + Security Rules | 🔄 Next | Mar 2026 |
-| 14 | MVP Complete (Automation) | ⏸️ Blocked | TBD |
+| 11 | End-to-end flow verified | ✅ Done | Mar 9 |
+| 12 | Notifications + UI/UX Polish (all 3 roles) | ✅ Done | Mar 15 |
+| 13 | Barangay Boundary Check + GeoJSON Seeding | ✅ Done | Mar 18 |
+| **14** | **HC-05 Hardware Validated + Relay Confirmed** | **✅ Done** | **Mar 19** |
+| 15 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
+| 16 | MVP Complete (Phase 8 Automation) | ⏳ Next | TBD |
 
 ---
 
@@ -252,16 +216,15 @@ flutter_launcher_icons: ^0.14.1
 | Debug `print()` throughout codebase | Low | Clean before final demo |
 | `withOpacity` → `withValues()` deprecation warnings (~35 instances) | Low | Batch fix before demo |
 | `activeColor` → `activeThumbColor` (2 instances) | Low | Minor deprecation |
-| BLE scan not filtered to ESP32 UUID | Medium | Fix in Phase 8 |
-| ESP32 BLE UUIDs not defined | **Blocker** | Needed for Phase 8 |
-| iOS Info.plist not configured | Low | Android only for capstone |
+| `_DevTestButton` + `bt_classic_test_screen.dart` | Medium | Remove before production — dev-only |
+| `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs — patch needs reapplying |
 | Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
-| `barangay_profile_screen.dart` still a placeholder | Low | Uses shared profile — functional but no barangay-specific content |
-| Step 7.15 boundary check not implemented | Medium | Officials can submit outside their barangay |
 | Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
-| Old test zone documents missing `submitted_by_name` | Low | Only affects pre-patch documents — new submissions show correctly |
+| `barangay_profile_screen.dart` still a placeholder | Low | Uses shared profile — functional |
+| Old test zone documents missing `submitted_by_name` | Low | Only affects pre-patch documents |
+| iOS Info.plist not configured | Low | Android only for capstone |
 
 ---
 
 **For detailed changes, see:** CHANGELOG.md
-**Last Updated:** March 15, 2026
+**Last Updated:** March 19, 2026
