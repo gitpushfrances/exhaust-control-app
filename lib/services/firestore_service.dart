@@ -103,7 +103,7 @@ class FirestoreService {
         );
   }
 
-  // ─── Admin: Officials Management ─────────────────────────────
+  // ─── Admin: Officials Management ──────────────────────────────
 
   Stream<List<AppUser>> streamOfficials() {
     return _db
@@ -116,6 +116,7 @@ class FirestoreService {
         );
   }
 
+  /// Original method — kept for backward compat
   Future<bool> createOfficialAccount({
     required String name,
     required String email,
@@ -143,6 +144,39 @@ class FirestoreService {
     }
   }
 
+  /// Used by the updated create official screen.
+  /// Writes user doc AND syncs official_uid back to the barangay doc.
+  Future<bool> createOfficialAccountWithSync({
+    required String uid,
+    required String name,
+    required String email,
+    required String barangayId,
+    required String barangayName,
+    required String createdByUid,
+  }) async {
+    try {
+      final newUser = AppUser(
+        uid: uid,
+        name: name,
+        email: email,
+        role: 'barangay_official',
+        barangayId: barangayId,
+        barangayName: barangayName,
+        barangayIds: [barangayId],
+        barangayNames: [barangayName],
+        isActive: true,
+        createdAt: DateTime.now(),
+        createdBy: createdByUid,
+      );
+      await _db.collection('users').doc(uid).set(newUser.toMap());
+      await _syncBarangayOfficialUid(barangayId: barangayId, officialUid: uid);
+      return true;
+    } catch (e) {
+      debugPrint('Error creating official with sync: $e');
+      return false;
+    }
+  }
+
   Future<bool> setOfficialActiveStatus(String uid, bool isActive) async {
     try {
       await _db.collection('users').doc(uid).update({'is_active': isActive});
@@ -150,6 +184,87 @@ class FirestoreService {
     } catch (e) {
       debugPrint('Error updating official status: $e');
       return false;
+    }
+  }
+
+  // ─── Barangay Assignment ──────────────────────────────────────
+
+  Future<void> _syncBarangayOfficialUid({
+    required String barangayId,
+    required String? officialUid,
+  }) async {
+    try {
+      await _db.collection('barangays').doc(barangayId).update({
+        'official_uid': officialUid,
+      });
+    } catch (e) {
+      debugPrint('Error syncing barangay official_uid: $e');
+    }
+  }
+
+  Future<bool> assignBarangayToOfficial({
+    required String officialUid,
+    required String barangayId,
+    required String barangayName,
+  }) async {
+    try {
+      await _db.collection('users').doc(officialUid).update({
+        'barangay_ids': FieldValue.arrayUnion([barangayId]),
+        'barangay_names': FieldValue.arrayUnion([barangayName]),
+        'barangay_id': barangayId,
+        'barangay_name': barangayName,
+      });
+      await _syncBarangayOfficialUid(
+        barangayId: barangayId,
+        officialUid: officialUid,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error assigning barangay: $e');
+      return false;
+    }
+  }
+
+  Future<bool> removeBarangayFromOfficial({
+    required String officialUid,
+    required String barangayId,
+    required String barangayName,
+  }) async {
+    try {
+      await _db.collection('users').doc(officialUid).update({
+        'barangay_ids': FieldValue.arrayRemove([barangayId]),
+        'barangay_names': FieldValue.arrayRemove([barangayName]),
+      });
+      await _syncBarangayOfficialUid(barangayId: barangayId, officialUid: null);
+      return true;
+    } catch (e) {
+      debugPrint('Error removing barangay: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getBarangaysForOfficial(
+    String officialUid,
+  ) async {
+    try {
+      final userDoc = await _db.collection('users').doc(officialUid).get();
+      if (!userDoc.exists) return [];
+      final data = userDoc.data()!;
+      final ids =
+          (data['barangay_ids'] as List?)?.map((e) => e.toString()).toList() ??
+          [];
+      if (ids.isEmpty) return [];
+      final results = <Map<String, dynamic>>[];
+      for (final id in ids) {
+        final doc = await _db.collection('barangays').doc(id).get();
+        if (doc.exists) {
+          results.add({...doc.data()!, 'doc_id': doc.id});
+        }
+      }
+      return results;
+    } catch (e) {
+      debugPrint('Error fetching barangays for official: $e');
+      return [];
     }
   }
 
@@ -211,6 +326,56 @@ class FirestoreService {
     await batch.commit();
   }
 
+  /// Mark specific notifications as read by their doc IDs.
+  Future<void> markNotificationsRead(List<String> docIds) async {
+    if (docIds.isEmpty) return;
+    final batch = _db.batch();
+    for (final id in docIds) {
+      batch.update(_db.collection('notifications').doc(id), {'is_read': true});
+    }
+    await batch.commit();
+  }
+
+  /// Delete a single notification.
+  Future<void> deleteNotification(String docId) async {
+    try {
+      await _db.collection('notifications').doc(docId).delete();
+    } catch (e) {
+      debugPrint('Error deleting notification: $e');
+    }
+  }
+
+  /// Batch delete multiple notifications by doc IDs.
+  Future<void> deleteNotifications(List<String> docIds) async {
+    if (docIds.isEmpty) return;
+    try {
+      final batch = _db.batch();
+      for (final id in docIds) {
+        batch.delete(_db.collection('notifications').doc(id));
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error batch deleting notifications: $e');
+    }
+  }
+
+  /// Delete ALL notifications for a user.
+  Future<void> deleteAllNotifications(String uid) async {
+    try {
+      final snap = await _db
+          .collection('notifications')
+          .where('uid', isEqualTo: uid)
+          .get();
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error deleting all notifications: $e');
+    }
+  }
+
   // ─── Barangay Official ────────────────────────────────────────
 
   Future<bool> submitZoneRequest({
@@ -221,7 +386,7 @@ class FirestoreService {
     required String barangayId,
     required String barangayName,
     required String submittedByUid,
-    required String submittedByName, // ← added
+    required String submittedByName,
     String remarks = '',
   }) async {
     try {
@@ -234,7 +399,7 @@ class FirestoreService {
         'barangay_id': barangayId,
         'barangay_name': barangayName,
         'submitted_by_uid': submittedByUid,
-        'submitted_by_name': submittedByName, // ← added
+        'submitted_by_name': submittedByName,
         'remarks': remarks,
         'created_at': FieldValue.serverTimestamp(),
         'created_by': submittedByUid,

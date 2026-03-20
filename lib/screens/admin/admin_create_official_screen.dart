@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart' as app_auth;
 import '../../models/app_user.dart';
 import '../../services/firestore_service.dart';
@@ -26,7 +25,6 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
-  // Dropdown state
   List<String> _municipalities = [];
   String? _selectedMunicipality;
   List<Map<String, dynamic>> _barangays = [];
@@ -34,7 +32,6 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
   bool _loadingMunicipalities = true;
   bool _loadingBarangays = false;
 
-  // Existing official on selected barangay
   AppUser? _existingOfficial;
   bool _loadingExisting = false;
 
@@ -101,7 +98,6 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
       return;
     }
 
-    // If barangay is occupied, show override confirmation
     if (_existingOfficial != null) {
       final confirmed = await _showOverrideDialog();
       if (!confirmed) return;
@@ -131,27 +127,25 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
 
       final uid = cred.user!.uid;
 
-      // Write Firestore user doc
-      final newUser = AppUser(
+      // ── Write user doc + sync occupancy to barangay doc ──────
+      await _fs.createOfficialAccountWithSync(
         uid: uid,
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
-        role: 'barangay_official',
         barangayId: barangayId,
         barangayName: barangayName,
-        isActive: true,
-        createdAt: DateTime.now(),
-        createdBy: adminUid,
+        createdByUid: adminUid,
       );
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .set(newUser.toMap());
-
-      // If replacing, deactivate the old official
+      // If replacing, deactivate old official and clear their barangay
       if (_existingOfficial != null) {
         await _fs.setOfficialActiveStatus(_existingOfficial!.uid, false);
+        // Clear old official's occupancy from barangay doc
+        await _fs.removeBarangayFromOfficial(
+          officialUid: _existingOfficial!.uid,
+          barangayId: barangayId,
+          barangayName: barangayName,
+        );
       }
 
       if (mounted) {
@@ -169,11 +163,9 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
       }
     } on fb_auth.FirebaseAuthException catch (e) {
       String msg = 'Failed to create account.';
-      if (e.code == 'email-already-in-use') {
-        msg = 'Email already in use.';
-      } else if (e.code == 'weak-password') {
+      if (e.code == 'email-already-in-use') msg = 'Email already in use.';
+      if (e.code == 'weak-password')
         msg = 'Password must be at least 6 characters.';
-      }
       if (mounted) _showError(msg);
     } catch (e) {
       if (mounted) _showError('Error: $e');
@@ -334,7 +326,6 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Account Details ──────────────────────
                     _SectionLabel(label: 'Account Details'),
                     const SizedBox(height: 12),
                     _Field(
@@ -376,14 +367,9 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                       validator: (v) =>
                           v == null || v.length < 6 ? 'Min 6 characters' : null,
                     ),
-
                     const SizedBox(height: 24),
-
-                    // ── Barangay Assignment ──────────────────
                     _SectionLabel(label: 'Barangay Assignment'),
                     const SizedBox(height: 12),
-
-                    // Municipality Dropdown
                     _DropdownField(
                       label: 'Municipality',
                       hint: 'Select municipality',
@@ -396,10 +382,7 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                           .toList(),
                       onChanged: _onMunicipalityChanged,
                     ),
-
                     const SizedBox(height: 12),
-
-                    // Barangay Dropdown
                     if (_selectedMunicipality != null) ...[
                       _loadingBarangays
                           ? const Center(
@@ -414,21 +397,17 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                               onChanged: _onBarangayChanged,
                             ),
                     ],
-
-                    // Existing Official Card
                     if (_loadingExisting)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Center(child: CircularProgressIndicator()),
                       ),
-
                     if (!_loadingExisting &&
                         _selectedBarangay != null &&
                         _existingOfficial != null) ...[
                       const SizedBox(height: 16),
                       _ExistingOfficialCard(official: _existingOfficial!),
                     ],
-
                     if (!_loadingExisting &&
                         _selectedBarangay != null &&
                         _existingOfficial == null) ...[
@@ -469,10 +448,7 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                         ),
                       ),
                     ],
-
                     const SizedBox(height: 32),
-
-                    // Submit Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -504,7 +480,6 @@ class _AdminCreateOfficialScreenState extends State<AdminCreateOfficialScreen> {
                               ),
                       ),
                     ),
-
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -645,7 +620,7 @@ class _DropdownField extends StatelessWidget {
   }
 }
 
-// ─── Barangay Dropdown with occupancy colors ───────────────────
+// ─── Barangay Dropdown ─────────────────────────────────────────
 
 class _BarangayDropdown extends StatelessWidget {
   final List<Map<String, dynamic>> barangays;

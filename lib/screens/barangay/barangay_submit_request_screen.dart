@@ -31,7 +31,6 @@ class _BarangaySubmitRequestScreenState
 
   static const List<double> _radiusOptions = [50, 100, 200, 300, 500];
 
-  // Barangay boundary
   List<dynamic> _boundaryPolygon = [];
   List<LatLng> _boundaryLatLng = [];
   bool _isLoadingBoundary = true;
@@ -50,10 +49,10 @@ class _BarangaySubmitRequestScreenState
 
   Future<void> _loadBoundary() async {
     final official = context.read<AuthProvider>().appUser;
-    if (official == null || official.barangayId == null) return;
+    if (official == null || official.primaryBarangayId == null) return;
 
     final fs = FirestoreService();
-    final data = await fs.getBarangayBoundary(official.barangayId!);
+    final data = await fs.getBarangayBoundary(official.primaryBarangayId!);
 
     if (!mounted) return;
     if (data == null) {
@@ -62,14 +61,15 @@ class _BarangaySubmitRequestScreenState
     }
 
     final polygon = data['boundary_polygon'] as List<dynamic>? ?? [];
+    final converted = firestorePolygonToLatLng(polygon);
+
     setState(() {
       _boundaryPolygon = polygon;
-      _boundaryLatLng = firestorePolygonToLatLng(polygon);
+      _boundaryLatLng = converted;
       _barangayName = data['barangay_name'] ?? '';
       _isLoadingBoundary = false;
     });
 
-    // Move map to barangay center
     final centerLat = (data['center_lat'] as num).toDouble();
     final centerLng = (data['center_lng'] as num).toDouble();
     _mapController.move(LatLng(centerLat, centerLng), 14);
@@ -105,13 +105,11 @@ class _BarangaySubmitRequestScreenState
   }
 
   void _onMapTap(TapPosition tapPosition, LatLng point) {
-    // Block pin drop if boundary not loaded yet
     if (_isLoadingBoundary) {
       _showError('Loading barangay boundary, please wait...');
       return;
     }
 
-    // Block pin drop if outside barangay boundary
     if (_boundaryPolygon.isNotEmpty) {
       final inside = isPointInPolygon(
         point.latitude,
@@ -119,7 +117,7 @@ class _BarangaySubmitRequestScreenState
         _boundaryPolygon,
       );
       if (!inside) {
-        _showError('Pin must be inside $_barangayName only.');
+        _showOutOfBoundsModal();
         return;
       }
     }
@@ -130,6 +128,183 @@ class _BarangaySubmitRequestScreenState
       _resolvedAddress = '';
     });
     _geocodePoint(point);
+  }
+
+  // ── Out-of-bounds modal ────────────────────────────────────────────────────
+  void _showOutOfBoundsModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black54,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 32,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Amber header strip
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF3C7),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.location_off_rounded,
+                        color: Color(0xFFF59E0B),
+                        size: 26,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Outside Boundary',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF111827),
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Body
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+                child: Column(
+                  children: [
+                    RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          color: Color(0xFF6B7280),
+                          height: 1.55,
+                        ),
+                        children: [
+                          const TextSpan(
+                            text:
+                                'The location you tapped is outside the boundary of ',
+                          ),
+                          TextSpan(
+                            text: _barangayName.isNotEmpty
+                                ? _barangayName
+                                : 'your assigned barangay',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          const TextSpan(
+                            text:
+                                '.\n\nYou may only submit zone requests within your assigned area. Tap inside the highlighted boundary on the map.',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    const Divider(color: Color(0xFFF3F4F6), height: 1),
+                    const SizedBox(height: 16),
+
+                    // Info tip
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            color: Color(0xFF3B82F6),
+                            size: 15,
+                          ),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Look for the blue outlined area on the map — that is your allowed zone.',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF3B82F6),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+
+              // CTA button
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF111827),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'I Understand',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _geocodePoint(LatLng point) async {
@@ -200,8 +375,8 @@ class _BarangaySubmitRequestScreenState
       latitude: _selectedPoint!.latitude,
       longitude: _selectedPoint!.longitude,
       radius: _radius,
-      barangayId: official?.barangayId ?? '',
-      barangayName: official?.barangayName ?? '',
+      barangayId: official?.primaryBarangayId ?? '',
+      barangayName: official?.primaryBarangayName ?? '',
       submittedByUid: official?.uid ?? '',
       submittedByName: official?.name ?? '',
       remarks: _remarksController.text.trim(),
@@ -249,7 +424,6 @@ class _BarangaySubmitRequestScreenState
       ),
       body: Column(
         children: [
-          // Info banner
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -286,7 +460,6 @@ class _BarangaySubmitRequestScreenState
             ),
           ),
 
-          // Map
           SizedBox(
             height: 300,
             child: Stack(
@@ -305,21 +478,29 @@ class _BarangaySubmitRequestScreenState
                       userAgentPackageName:
                           'com.example.exhaust_controller_app',
                     ),
-                    // Barangay boundary polygon
                     if (_boundaryLatLng.isNotEmpty)
                       PolygonLayer(
                         polygons: [
                           Polygon(
+                            points: const [
+                              LatLng(90, -180),
+                              LatLng(-90, -180),
+                              LatLng(-90, 180),
+                              LatLng(90, 180),
+                              LatLng(90, -180),
+                            ],
+                            holePointsList: [_boundaryLatLng],
+                            color: Color.fromRGBO(0, 0, 0, 0.35),
+                            borderStrokeWidth: 0,
+                          ),
+                          Polygon(
                             points: _boundaryLatLng,
-                            color: const Color(
-                              0xFF3B82F6,
-                            ).withValues(alpha: 0.08),
+                            color: Colors.transparent,
                             borderColor: const Color(0xFF3B82F6),
-                            borderStrokeWidth: 2.0,
+                            borderStrokeWidth: 2.5,
                           ),
                         ],
                       ),
-                    // Selected zone circle + pin
                     if (_selectedPoint != null) ...[
                       CircleLayer(
                         circles: [
@@ -351,7 +532,6 @@ class _BarangaySubmitRequestScreenState
                         ],
                       ),
                     ],
-                    // Current location blue dot
                     MarkerLayer(
                       markers: [
                         Marker(
@@ -380,7 +560,6 @@ class _BarangaySubmitRequestScreenState
                     ),
                   ],
                 ),
-                // Recenter button
                 Positioned(
                   bottom: 12,
                   right: 12,
@@ -402,7 +581,6 @@ class _BarangaySubmitRequestScreenState
             ),
           ),
 
-          // Form
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
