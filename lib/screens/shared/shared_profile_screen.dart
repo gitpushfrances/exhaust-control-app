@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/bluetooth_provider.dart';
+import '../test/bt_classic_test_screen.dart';
 
 class SharedProfileScreen extends StatelessWidget {
   const SharedProfileScreen({super.key});
@@ -198,6 +199,28 @@ class SharedProfileScreen extends StatelessWidget {
 
             const SizedBox(height: 12),
 
+            // ── Developer Tools — Super Admin only ────────────
+            if (normalizedRole == 'superadmin') ...[
+              _Section(
+                title: 'Developer Tools',
+                children: [
+                  _ActionRow(
+                    icon: Icons.bluetooth_searching_rounded,
+                    title: 'HC-05 Hardware Test',
+                    subtitle: 'Test Classic Bluetooth & relay commands',
+                    color: const Color(0xFF6366F1),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BtClassicTestScreen(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // ── App ───────────────────────────────────────────
             _Section(
               title: 'App',
@@ -205,12 +228,12 @@ class SharedProfileScreen extends StatelessWidget {
                 _ActionRow(
                   icon: Icons.info_outline_rounded,
                   title: 'About',
-                  subtitle: 'Exhaust Controller v0.7.0',
+                  subtitle: 'Exhaust Controller v0.7.1',
                   color: const Color(0xFF3B82F6),
                   onTap: () => showAboutDialog(
                     context: context,
                     applicationName: 'Exhaust Control System',
-                    applicationVersion: '0.7.0',
+                    applicationVersion: '0.7.1',
                     applicationIcon: const Icon(
                       Icons.two_wheeler_rounded,
                       size: 32,
@@ -256,9 +279,9 @@ class SharedProfileScreen extends StatelessWidget {
             const SizedBox(height: 32),
 
             // ── Version footer ────────────────────────────────
-            Text(
-              'Exhaust Controller • v0.7.0',
-              style: TextStyle(fontSize: 11, color: const Color(0xFF9CA3AF)),
+            const Text(
+              'Exhaust Controller • v0.7.1',
+              style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
             ),
             const SizedBox(height: 24),
           ],
@@ -474,9 +497,9 @@ class _ActionRow extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(
+              const Icon(
                 Icons.chevron_right_rounded,
-                color: const Color(0xFFD1D5DB),
+                color: Color(0xFFD1D5DB),
                 size: 20,
               ),
             ],

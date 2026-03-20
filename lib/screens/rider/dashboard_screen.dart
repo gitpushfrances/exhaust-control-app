@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../providers/bluetooth_provider.dart';
 import '../../providers/exhaust_provider.dart';
 import '../../widgets/bluetooth_connection_modal.dart';
-import '../test/bt_classic_test_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -38,7 +37,6 @@ class DashboardScreen extends StatelessWidget {
             _LocationInfoCard(),
             const SizedBox(height: 16),
             // TODO: REMOVE BEFORE PRODUCTION — HC-05 hardware test
-            _DevTestButton(),
           ],
         ),
       ),
@@ -490,27 +488,6 @@ class _LocationInfoCard extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _DevTestButton extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return OutlinedButton.icon(
-      onPressed: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const BtClassicTestScreen()),
-      ),
-      icon: const Icon(Icons.developer_mode, size: 16),
-      label: const Text('HC-05 Test (Dev Only)'),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: const Color(0xFF6B7280),
-        side: const BorderSide(color: Color(0xFFD1D5DB)),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        minimumSize: const Size(double.infinity, 0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
