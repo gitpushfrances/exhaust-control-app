@@ -4,6 +4,77 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.2] - Phase 7.2: UI Hardening, Dev Tool Relocation & Dashboard Cleanup
+
+**Status:** ✅ COMPLETED — March 21, 2026
+
+### 🎯 What This Phase Achieved:
+Cleaned up the rider dashboard by fully removing the temporary HC-05 dev test shortcut. Relocated the hardware test screen exclusively to the Super Admin profile under a new "Developer Tools" section. Fixed a stray brace compile error introduced during the removal. Verified zero errors on `flutter analyze` before pushing.
+
+---
+
+### ✅ Completed This Session — Dev Tool Relocation + Dashboard Cleanup (March 21, 2026)
+
+---
+
+#### Feature — `lib/screens/shared/shared_profile_screen.dart` updated
+- **Added:** `import '../test/bt_classic_test_screen.dart'`
+- **Added:** "Developer Tools" `_Section` block — only renders when `normalizedRole == 'superadmin'`
+- **Added:** `_ActionRow` — "HC-05 Hardware Test" with `bluetooth_searching` icon (indigo), subtitle "Test Classic Bluetooth & relay commands", navigates to `BtClassicTestScreen` via `Navigator.push`
+- **Result:** Dev hardware test is now role-gated — barangay officials and riders never see it
+- **Version bump:** `v0.7.0` → `v0.7.1` in About dialog and footer text
+
+#### Fix — `lib/screens/rider/dashboard_screen.dart`
+- **Removed:** `import '../test/bt_classic_test_screen.dart'` (line 6)
+- **Removed:** `_DevTestButton()` widget call from dashboard body column
+- **Removed:** Entire `_DevTestButton` class (was lines 498–514)
+- **Fixed:** Stray closing brace `}` left behind after class deletion — caused `expected_executable` compile error at line 495/496
+- **Result:** Rider dashboard is clean — no dev artifacts, compiles without errors
+
+#### Verification
+- `flutter analyze` — **zero errors** after all changes
+- Only pre-existing `info`-level deprecation warnings remain (tracked in tech debt)
+- Phase 8 task **8.7** marked ✅ — dev test button removed from production build
+
+---
+
+### 🗂️ Updated Folder Impact
+```
+lib/
+├── screens/
+│   ├── shared/
+│   │   └── shared_profile_screen.dart    ✅ UPDATED — Developer Tools section (superadmin only)
+│   ├── rider/
+│   │   └── dashboard_screen.dart         ✅ UPDATED — _DevTestButton fully removed, stray brace fixed
+│   └── test/
+│       └── bt_classic_test_screen.dart   ℹ️  Unchanged — still exists, now only reachable via Super Admin
+```
+
+---
+
+### ⚠️ Still Pending in Phase 7
+- [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
+- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
+- [ ] **7.20** — FCM push notifications (optional)
+
+---
+
+### 🔜 Next — Phase 8: Core HC-05 Automation
+
+**Status:** 🟡 UNBLOCKED — hardware validated, dev tooling cleaned up, ready to wire
+
+| Task | Notes | Status |
+|------|-------|--------|
+| 8.1 | Create `ClassicBluetoothService` — wraps HC-05 connection + send logic | ⏳ Next |
+| 8.2 | Wire `ExhaustProvider` — send `CLOSE` command on geofence entry | ⏳ Next |
+| 8.3 | Wire `ExhaustProvider` — send `OPEN` command on geofence exit | ⏳ Next |
+| 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT connection | ⏳ Next |
+| 8.5 | Log auto-closure events to Firestore | ⏳ Next |
+| 8.6 | End-to-end test — rider enters zone → relay clicks → valve closes | ⏳ Next |
+| 8.7 | ~~Remove `_DevTestButton` and `bt_classic_test_screen.dart` from production build~~ | ✅ Done |
+
+---
+
 ## [0.7.1] - Phase 7.1: HC-05 Classic Bluetooth Hardware Validation
 
 **Status:** ✅ COMPLETED — March 19, 2026
@@ -33,23 +104,19 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
   - Color-coded serial log — green for Arduino responses, blue for Flutter sends, gray for system messages
   - Disconnect button, refresh paired devices, clear log
   - Status bar at top — green when connected, red when not
-- **Note:** Dev-only screen — marked with TODO to remove before production
+- **Note:** Dev-only screen — accessible via Super Admin profile → Developer Tools
 
 #### Feature — `lib/screens/rider/dashboard_screen.dart` updated
-- **Added:** `_DevTestButton` widget at bottom of dashboard body
-- **Added:** Import for `bt_classic_test_screen.dart`
-- **Purpose:** Temporary dev access button to HC-05 test screen
-- **Note:** Marked TODO — remove before production
+- **Added:** `_DevTestButton` widget at bottom of dashboard body *(temp — removed in v0.7.2)*
+- **Note:** Marked TODO — removed in patch 0.7.2
 
 ---
 
 #### Hardware — HC-05 Module Configuration
-- **Issue:** HC-05 default baud rate was 115200 — too fast for `SoftwareSerial` on Arduino Uno causing garbled/empty reads
-- **Fix:** Entered AT mode on HC-05 and permanently set baud to 9600 via AT commands:
-  - `AT` → `OK` (confirmed AT mode active)
-  - `AT+UART?` → `+UART:115200,0,0` (confirmed original baud)
-  - `AT+UART=9600,0,0` → `OK` (set to 9600)
-  - `AT+RESET` → `OK` (applied and restarted)
+- **Issue:** HC-05 default baud rate was 115200 — too fast for `SoftwareSerial` on Arduino Uno
+- **Fix:** Entered AT mode and permanently set baud to 9600:
+  - `AT+UART=9600,0,0` → `OK`
+  - `AT+RESET` → `OK`
 - **Result:** HC-05 permanently configured at 9600 baud
 
 #### Hardware — Arduino Wiring (Final)
@@ -70,49 +137,13 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
   - `OPEN` → `digitalWrite(RELAY_PIN, LOW)` → ACK:OPEN
   - `CLOSE` → `digitalWrite(RELAY_PIN, HIGH)` → ACK:CLOSE
   - Other → echoes ACK back
-- **String matching:** Uses `indexOf()` instead of `==` — handles hidden `\r\n` characters from Flutter serial send
+- **String matching:** Uses `indexOf()` — handles hidden `\r\n` from Flutter serial send
 
 #### Validation Results
-- ✅ Flutter → HC-05 → Arduino: HELLO, OPEN, CLOSE received correctly in Serial Monitor
+- ✅ Flutter → HC-05 → Arduino: HELLO, OPEN, CLOSE received correctly
 - ✅ Arduino → HC-05 → Flutter: ACK responses displayed in app serial log
 - ✅ Relay clicks on CLOSE command, releases on OPEN command
-- ✅ Full two-way communication confirmed at 9600 baud on SoftwareSerial pins 6/7
-
----
-
-### 🗂️ Updated Folder Structure
-```
-lib/
-├── screens/
-│   ├── test/                                  ✅ NEW folder
-│   │   └── bt_classic_test_screen.dart        ✅ NEW — HC-05 dev test screen
-│   ├── rider/
-│   │   └── dashboard_screen.dart              ✅ added _DevTestButton (temp)
-│   └── ... (all other screens unchanged)
-```
-
----
-
-### ⚠️ Still Pending in Phase 7
-- [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
-- [ ] **7.20** — FCM push notifications (optional)
-
----
-
-### 🔜 Next — Phase 8: Core HC-05 Automation
-
-**Status:** 🟡 UNBLOCKED — hardware validated, ready to wire into ExhaustProvider
-
-| Task | Notes |
-|------|-------|
-| 8.1 | Create `ClassicBluetoothService` — wraps HC-05 connection + send logic | 
-| 8.2 | Wire `ExhaustProvider` — send `CLOSE` command on geofence entry |
-| 8.3 | Wire `ExhaustProvider` — send `OPEN` command on geofence exit |
-| 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT connection |
-| 8.5 | Log auto-closure events to Firestore |
-| 8.6 | End-to-end test — rider enters zone → BLE fires → relay clicks → valve closes |
-| 8.7 | Remove `_DevTestButton` and `bt_classic_test_screen.dart` from production build |
+- ✅ Full two-way communication confirmed at 9600 baud
 
 ---
 
@@ -130,80 +161,82 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 
 | Step | Task | Risk | Status |
 |------|------|------|--------|
-| 7.1 | Update `RestrictedArea` model — add `status`, `barangay_id`, `submitted_by_uid`, `remarks`, `rejection_reason`, `approved_at`, `approved_by_uid` fields with defaults | None | ✅ Done |
-| 7.2 | Update Sign Up screen — write `role: "rider"` on register | None | ✅ Done |
-| 7.3 | Update `AuthWrapper` — role-based routing to 3 navigation screens | Low | ✅ Done |
+| 7.1 | Update `RestrictedArea` model | None | ✅ Done |
+| 7.2 | Update Sign Up screen — write `role: "rider"` | None | ✅ Done |
+| 7.3 | Update `AuthWrapper` — role-based routing | Low | ✅ Done |
 | 7.4 | Seed Super Admin in Firestore console manually | None | ⏳ Pending |
-| 7.5 | Update `streamRestrictedAreas()` — replaced with `streamApprovedAreas()` filter `status == "approved"` | Low | ✅ Done |
-| 7.6 | Remove Add Restricted Area button from rider UI (map screen + profile screen) | None | ✅ Done |
-| 7.7 | Create `AdminNavigationScreen` + 4 skeleton screens | None | ✅ Done |
-| 7.8 | Build Admin Home Dashboard (stat cards, recent activity feed) | None | ✅ Done |
-| 7.9 | Build Request Inbox + Detail screen + Approve/Reject flow | None | ✅ Done |
-| 7.10 | Build Manage Officials + Create Official form | None | ✅ Done |
-| 7.11 | Build Admin Global Map with filter chips + circle overlays | None | ✅ Done |
-| 7.12 | Create `BarangayNavigationScreen` + 4 skeleton screens | None | ✅ Done |
-| 7.13 | Build Barangay Home Dashboard (zone stats, request summary) | None | ✅ Done |
-| 7.14 | Build Submit Request screen (real logic — submits pending to Firestore) | None | ✅ Done |
-| 7.15 | Implement barangay boundary check — polygon point-in-polygon (GeoJSON) | None | ✅ Done |
-| 7.16 | Build My Requests screen — 3 inner tabs (Pending / Approved / Rejected) | None | ✅ Done |
-| 7.17 | Build Notifications screen + bell icon on Barangay Home | None | ✅ Done |
-| 7.18 | Write Firestore notification documents on approve / reject / submit events | Low | ✅ Done |
-| 7.19 | Tighten Firestore security rules (all roles) | **HIGH** | ⏳ Pending |
-| 7.20 | Add FCM push notifications (optional, add last) | Low | ⏳ Pending |
+| 7.5 | `streamApprovedAreas()` filter `status == "approved"` | Low | ✅ Done |
+| 7.6 | Remove Add Restricted Area from rider UI | None | ✅ Done |
+| 7.7 | `AdminNavigationScreen` + 4 skeleton screens | None | ✅ Done |
+| 7.8 | Admin Home Dashboard | None | ✅ Done |
+| 7.9 | Request Inbox + Detail + Approve/Reject flow | None | ✅ Done |
+| 7.10 | Manage Officials + Create Official form | None | ✅ Done |
+| 7.11 | Admin Global Map | None | ✅ Done |
+| 7.12 | `BarangayNavigationScreen` + 4 skeleton screens | None | ✅ Done |
+| 7.13 | Barangay Home Dashboard | None | ✅ Done |
+| 7.14 | Submit Request screen | None | ✅ Done |
+| 7.15 | Barangay boundary check — polygon point-in-polygon | None | ✅ Done |
+| 7.16 | My Requests — 3 tabs (Pending / Approved / Rejected) | None | ✅ Done |
+| 7.17 | Notifications screen + bell icon | None | ✅ Done |
+| 7.18 | Firestore notification docs on approve/reject/submit | Low | ✅ Done |
+| 7.19 | Tighten Firestore security rules | **HIGH** | ⏳ Pending |
+| 7.20 | FCM push notifications (optional) | Low | ⏳ Pending |
 
 ---
 
-### ✅ Completed This Session — Barangay Geofencing + Data Seeding (March 18, 2026)
+### ✅ Completed — Manage Officials Overhaul + Notification Upgrades + Polygon Fix (March 2026)
 
-#### Feature — Barangay Boundary Geofencing (Step 7.15) — COMPLETED
-- **Approach:** Upgraded from Option A (Haversine circle) to Option B (real polygon boundaries from GeoJSON)
-- **Data Source:** `faeldon/philippines-json-maps` repo — `bgysubmuns` GeoJSON files (barangay level, lowres)
-- **Coverage:** All 26 municipalities of Eastern Samar — 934 barangays total
-- **Province PSGC:** `806000000` (Eastern Samar, Region VIII)
+#### Feature — `admin_manage_officials_screen.dart` — Full replacement
+- Tappable cards → `AdminOfficialDetailScreen`
+- Multi-barangay support (max 3 per official)
+- Assign/remove barangay bottom sheet with cascading municipality → barangay picker
+- Assignment sends in-app notification to official
 
-#### Infrastructure — Firestore `/barangays` Collection Seeded
-- **New collection:** `/barangays/{barangay_id}` — 934 documents uploaded
-- **ID format:** Custom hierarchical format `08-MUN-BRG` (e.g. `08-001-001`)
+#### Feature — `admin_create_official_screen.dart` — Full replacement
+- Calls `createOfficialAccountWithSync()` — writes `official_uid` back to barangay doc on creation
+- Fixes occupancy dot always showing vacant
 
-#### New File — `lib/utils/geo_utils.dart`
-- **Added:** `isPointInPolygon(lat, lng, polygon)` — ray casting algorithm, pure Dart, no packages
-- **Added:** `firestorePolygonToLatLng(polygon)` — converts Firestore `{lat, lng}` array to `List<LatLng>`
+#### Feature — `barangay_notifications_screen.dart` — Full rewrite
+- Long-press enters multi-select mode
+- Swipe-to-delete, select all, mark selected as read, delete selected, delete all
+- Smart timestamps (time if today, date if older)
 
-#### Feature — `FirestoreService.getBarangayBoundary()`
-- **Added:** `getBarangayBoundary(String barangayId)` method to `firestore_service.dart`
+#### Fix — `barangay_submit_request_screen.dart`
+- Polygon winding order fixed — world rectangle explicitly clockwise, boundary counterclockwise
+- Dark overlay now correctly dims outside the barangay boundary
+- Out-of-bounds error promoted from snackbar to modal — `barrierDismissible: false`, "I Understand" CTA
 
-#### Feature — `barangay_submit_request_screen.dart` updated
-- **Added:** Polygon boundary enforcement on pin drop
-- **Added:** `PolygonLayer` on map — draws official's barangay boundary as dashed blue polygon
-- **Updated:** Map auto-centers on barangay centroid on load
+#### Fix — `AppUser` model
+- Added `barangayIds: List<String>` and `barangayNames: List<String>`
+- Old single `barangayId`/`barangayName` kept as computed getters — no breaking changes
 
-#### Patch — Notification title strings cleaned
-- **Removed:** Emoji from `'Zone Approved ✅'` and `'Zone Rejected ❌'`
-
----
-
-### ✅ Completed Previously — UI/UX Polish & Fixes (March 15, 2026)
-
-#### Feature — Notification System fully wired
-#### Feature — `submitted_by_name` field added to zone requests
-#### Feature — Admin Home Dashboard rebuilt
-#### Feature — Admin Navigation Screen rebuilt with `_ProNavBar`
-#### Feature — Admin Global Map UI improved
-#### Feature — Rider Dashboard cleaned up
-#### Feature — Rider Map improved with pulsing GPS dot
-#### Feature — Rider Navigation Screen rebuilt
-#### Feature — Barangay Navigation Screen rebuilt
-#### Feature — Profile Screen redesigned (gradient header, role-matched colors)
-#### Patch — Firestore composite indexes for notifications
+#### Fix — `FirestoreService`
+- Added: `_syncBarangayOfficialUid`, `createOfficialAccountWithSync`, `assignBarangayToOfficial`, `removeBarangayFromOfficial`, `getBarangaysForOfficial`, `deleteNotification`, `deleteNotifications`, `deleteAllNotifications`, `markNotificationsRead`
 
 ---
 
-### ✅ Completed Previously — Patches & Fixes (March 9, 2026)
+### ✅ Completed — Barangay Geofencing + Data Seeding (March 18, 2026)
+- Real polygon boundaries from GeoJSON (`faeldon/philippines-json-maps`)
+- 934 barangays seeded across 26 municipalities of Eastern Samar
+- `geo_utils.dart` — `isPointInPolygon()` ray casting + `firestorePolygonToLatLng()`
 
-#### Patch — `RestrictedArea.fromMap()` Firestore Timestamp crash fix
-#### Patch — Firestore composite indexes for restricted_areas
-#### Patch — `admin_request_detail_screen.dart` converted to `StatefulWidget`
-#### Patch — Live location stream added to Admin and Barangay maps
+---
+
+### ✅ Completed — UI/UX Polish (March 15, 2026)
+- Notification system fully wired
+- `submitted_by_name` field added to zone requests
+- All 3 nav screens rebuilt with `_ProNavBar`
+- Profile screen redesigned — gradient header, role-matched colors
+- Rider map — pulsing GPS dot
+- Admin Global Map UI improved
+
+---
+
+### ✅ Completed — Patches & Fixes (March 9, 2026)
+- `RestrictedArea.fromMap()` Firestore Timestamp crash fix
+- Firestore composite indexes for `restricted_areas`
+- `admin_request_detail_screen.dart` converted to `StatefulWidget`
+- Live location stream added to Admin and Barangay maps
 
 ---
 
@@ -252,11 +285,11 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 | 0.7.0 (patch 1) | Multi-Role Foundation + Admin/Barangay Screens | ✅ Complete | Mar 9, 2026 |
 | 0.7.0 (patch 2) | Notifications, UI/UX Polish, Pro Nav, Profile Redesign | ✅ Complete | Mar 15, 2026 |
 | 0.7.0 (patch 3) | Barangay Geofencing + GeoJSON Seeding + Boundary Check | ✅ Complete | Mar 18, 2026 |
-| 0.7.0 (final) | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
-| **0.7.1** | **HC-05 Classic BT Validation + Relay Test** | **✅ Complete** | **Mar 19, 2026** |
+| 0.7.1 | HC-05 Classic BT Validation + Relay Test | ✅ Complete | Mar 19, 2026 |
+| **0.7.2** | **Dev Tool Relocation + Rider Dashboard Cleanup** | **✅ Complete** | **Mar 21, 2026** |
 | 0.8.0 | Core HC-05 Automation (geofence → relay) | 🟡 Unblocked | TBD |
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** March 19, 2026
+**Last Updated:** March 21, 2026

@@ -2,35 +2,61 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** March 19, 2026
+**Last Updated:** March 21, 2026
 
 ---
 
-## 🎯 Overall Progress: ~91% Complete
+## 🎯 Overall Progress: ~92% Complete
 
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
-> Phase 7 is ~98% done. HC-05 hardware validated — relay clicks on OPEN/CLOSE. Phase 8 is now unblocked.
+> Phase 7 is ~98% done. HC-05 hardware validated — relay clicks on OPEN/CLOSE.
+> Dev tooling cleaned up — HC-05 test screen moved to Super Admin only, rider dashboard is production-clean.
+> Phase 8 is now unblocked and ready to wire.
 
 ```
-[█████████████████████████████░░░] 91%
+[██████████████████████████████░░] 92%
 ```
 
 ### Scope Breakdown:
 | Scope | Progress | Notes |
 |-------|----------|-------|
-| Rider functionality | ~98% | All screens done, GPS dot map, compact UI ✅ |
+| Rider functionality | ~99% | All screens done, dashboard clean, no dev artifacts ✅ |
 | Phase 7 foundation (models, routing, structure) | 100% | Steps 7.1–7.7, 7.12 done ✅ |
-| Super Admin screens | 100% | Dashboard, Inbox, Detail, Officials, Global Map — all live + polished ✅ |
+| Super Admin screens | 100% | Dashboard, Inbox, Detail, Officials, Global Map, Dev Tools section ✅ |
 | Barangay Official screens | ~98% | All screens live, notifications working, boundary check done ✅ |
 | Notification system | 100% | In-app notifications fully wired end-to-end ✅ |
 | UI/UX Polish | 100% | All 3 roles — pro navbars, profile redesign, map improvements ✅ |
 | End-to-end flow | ✅ Working | Submit → Admin inbox → Approve/Reject → Rider map + Official notification |
 | HC-05 Hardware Validation | 100% | Two-way comms confirmed, relay clicks ✅ |
+| Dev Tooling / Code Hygiene | 100% | Dev test screen role-gated, rider dashboard production-clean ✅ |
 | Phase 8 BLE Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
 
 ---
 
 ## 📋 PHASE DETAILS
+
+---
+
+### ✅ PHASE 7.2: DEV TOOL RELOCATION + DASHBOARD CLEANUP (100% Complete)
+
+**Status:** ✅ COMPLETE — March 21, 2026
+
+| Task | Status |
+|------|--------|
+| Add "Developer Tools" section to Super Admin profile | ✅ Done |
+| Gate Developer Tools behind `normalizedRole == 'superadmin'` check | ✅ Done |
+| Remove `_DevTestButton` widget call from rider dashboard | ✅ Done |
+| Remove `bt_classic_test_screen` import from rider dashboard | ✅ Done |
+| Remove `_DevTestButton` class entirely from dashboard_screen.dart | ✅ Done |
+| Fix stray `}` compile error after class deletion | ✅ Done |
+| Bump version string to v0.7.1 in profile screen About dialog + footer | ✅ Done |
+| `flutter analyze` — zero errors confirmed | ✅ Done |
+| Commit + push to main | ✅ Done |
+
+> **Remark:** Phase 8 task 8.7 ("Remove `_DevTestButton` from production build") is now ✅ complete.
+> The HC-05 test screen still exists at `lib/screens/test/bt_classic_test_screen.dart` and remains
+> accessible exclusively through Super Admin → Profile → Developer Tools. It will be fully deleted
+> at the end of Phase 8 after the automation is wired and validated.
 
 ---
 
@@ -43,7 +69,7 @@
 | Add `flutter_bluetooth_serial` package | ✅ Done |
 | Fix `build.gradle` namespace AGP issue | ✅ Done |
 | Create `bt_classic_test_screen.dart` | ✅ Done |
-| Add dev test button to rider dashboard | ✅ Done |
+| Add dev test button to rider dashboard (temp) | ✅ Done → Removed in 0.7.2 |
 | Configure HC-05 baud rate via AT commands (9600) | ✅ Done |
 | Wire HC-05 TX→Pin6, RX→Pin7, Relay→Pin8 | ✅ Done |
 | Validate Flutter → Arduino command receive | ✅ Done |
@@ -110,7 +136,7 @@
 
 ### 🔜 NEXT PHASE — Phase 8: Core HC-05 Automation
 
-**Status:** 🟡 UNBLOCKED — hardware validated March 19, 2026
+**Status:** 🟡 UNBLOCKED — hardware validated, codebase clean, ready to wire
 
 | Step | Task | Status |
 |------|------|--------|
@@ -120,7 +146,11 @@
 | 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT | ⏳ Next |
 | 8.5 | Log auto-closure events to Firestore | ⏳ Next |
 | 8.6 | End-to-end test — enter zone → relay clicks → valve closes | ⏳ Next |
-| 8.7 | Remove `_DevTestButton` + `bt_classic_test_screen.dart` from build | ⏳ Next |
+| 8.7 | ~~Remove `_DevTestButton` + `bt_classic_test_screen.dart` from build~~ | ✅ Done (0.7.2) |
+
+> **Remark:** 8.7 is already done. When Phase 8 automation is complete and validated, delete
+> `lib/screens/test/bt_classic_test_screen.dart` entirely and remove the Developer Tools
+> section from `shared_profile_screen.dart`.
 
 ---
 
@@ -164,7 +194,7 @@ shared_preferences: ^2.5.4
 
 # Hardware
 flutter_blue_plus: 1.31.15
-flutter_bluetooth_serial: ^0.4.0   # NEW — HC-05 Classic BT
+flutter_bluetooth_serial: ^0.4.0   # HC-05 Classic BT
 geolocator: ^14.0.2
 permission_handler: ^12.0.1
 device_info_plus: ^10.1.0
@@ -203,9 +233,10 @@ flutter_launcher_icons: ^0.14.1
 | 11 | End-to-end flow verified | ✅ Done | Mar 9 |
 | 12 | Notifications + UI/UX Polish (all 3 roles) | ✅ Done | Mar 15 |
 | 13 | Barangay Boundary Check + GeoJSON Seeding | ✅ Done | Mar 18 |
-| **14** | **HC-05 Hardware Validated + Relay Confirmed** | **✅ Done** | **Mar 19** |
-| 15 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
-| 16 | MVP Complete (Phase 8 Automation) | ⏳ Next | TBD |
+| 14 | HC-05 Hardware Validated + Relay Confirmed | ✅ Done | Mar 19 |
+| **15** | **Dev Tool Relocation + Rider Dashboard Production-Clean** | **✅ Done** | **Mar 21** |
+| 16 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
+| 17 | MVP Complete (Phase 8 Automation) | ⏳ Next | TBD |
 
 ---
 
@@ -214,10 +245,11 @@ flutter_launcher_icons: ^0.14.1
 | Item | Priority | Notes |
 |------|----------|-------|
 | Debug `print()` throughout codebase | Low | Clean before final demo |
-| `withOpacity` → `withValues()` deprecation warnings (~35 instances) | Low | Batch fix before demo |
-| `activeColor` → `activeThumbColor` (2 instances) | Low | Minor deprecation |
-| `_DevTestButton` + `bt_classic_test_screen.dart` | Medium | Remove before production — dev-only |
-| `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs — patch needs reapplying |
+| `withOpacity` → `withValues()` (~12 instances remaining) | Low | Batch fix before demo |
+| `activeColor` → `activeThumbColor` (1 instance) | Low | Minor deprecation |
+| `bt_classic_test_screen.dart` | Low | Keep until Phase 8 validated, then delete entirely |
+| Developer Tools section in `shared_profile_screen.dart` | Low | Remove after Phase 8 complete |
+| `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs |
 | Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
 | Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
 | `barangay_profile_screen.dart` still a placeholder | Low | Uses shared profile — functional |
@@ -227,4 +259,4 @@ flutter_launcher_icons: ^0.14.1
 ---
 
 **For detailed changes, see:** CHANGELOG.md
-**Last Updated:** March 19, 2026
+**Last Updated:** March 21, 2026

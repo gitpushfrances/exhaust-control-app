@@ -9,7 +9,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 ## 📱 Project Overview
 
 ### **What It Does:**
-- 🔗 **Bluetooth Control:** Connects to motorcycle exhaust controller hardware (ESP32 via BLE)
+- 🔗 **Bluetooth Control:** Connects to motorcycle exhaust controller hardware (HC-05 Classic Bluetooth → Arduino Uno)
 - 📍 **GPS Automation:** Automatically closes exhaust when entering restricted areas
 - 🗺️ **Live Map:** Real OpenStreetMap with live pulsing GPS dot and restricted zone overlays
 - 👥 **3-Role System:** Super Admin, Barangay Official, Rider — each with their own screens and permissions
@@ -17,11 +17,12 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - 📊 **Admin Dashboard:** Live stats, zone management, official management
 - 👤 **User Accounts:** Firebase authentication with role-based routing
 - 🏘️ **Barangay Geofencing:** Officials can only submit zones inside their assigned barangay — enforced via real polygon boundaries from GeoJSON data (934 barangays, Eastern Samar)
+- 🔧 **Dev Tools:** HC-05 hardware test screen accessible exclusively to Super Admin via profile settings
 
 ### **Technology Stack:**
 - **Frontend:** Flutter 3.10+
 - **Backend:** Firebase (Auth, Firestore)
-- **Hardware:** Bluetooth Low Energy (BLE) — ESP32
+- **Hardware:** HC-05 Classic Bluetooth → Arduino Uno → Relay (Pin 8)
 - **Maps:** OpenStreetMap via `flutter_map`
 - **State Management:** Provider
 - **Geofencing:** Ray casting point-in-polygon algorithm (pure Dart) + GeoJSON barangay boundaries
@@ -45,45 +46,57 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] BLE scanning and connection
 - [x] GPS tracking every 8 seconds with reverse geocoding
 - [x] Restricted area detection on every GPS tick (Haversine)
+- [x] Dashboard production-clean — no dev artifacts
 
 **Super Admin Role:**
-- [x] Dashboard — welcome card, 4 live stat cards, recent zone activity with geocoded addresses, officials overview
+- [x] Dashboard — welcome card, 4 live stat cards, recent zone activity, officials overview
 - [x] Request Inbox — pending requests list, approve/reject with reason, Firestore write
-- [x] Manage Officials — active/inactive filter, deactivate/reactivate, create official form
-- [x] Global Map — all zones color-coded by status, filter chips, pin markers, legend, recenter
-- [x] Profile — indigo gradient card, role-aware
+- [x] Manage Officials — multi-barangay support (max 3), detail screen, assign/remove barangays
+- [x] Global Map — all zones color-coded by status, filter chips, pin markers, legend
+- [x] Profile — indigo gradient card, **Developer Tools section** (HC-05 hardware test — superadmin only)
 
 **Barangay Official Role:**
-- [x] Dashboard — welcome card, 4 live stat cards (total/pending/approved/rejected), recent requests
-- [x] Submit Request — map pin drop, radius selector, remarks, live location, pending submission
-- [x] Barangay boundary enforcement — polygon check on every pin drop, blocks pins outside assigned barangay
-- [x] Boundary polygon drawn on map — official sees their barangay boundary as blue dashed polygon
+- [x] Dashboard — welcome card, 4 live stat cards, recent requests
+- [x] Submit Request — map pin drop, radius selector, remarks, live location
+- [x] Barangay boundary enforcement — polygon check on every pin drop
+- [x] Boundary polygon drawn on map — blue dashed polygon overlay with correct winding (dark outside, clear inside)
+- [x] Out-of-bounds modal — `barrierDismissible: false`, barangay name injected, "I Understand" CTA
 - [x] My Requests — 3-tab screen (Pending / Approved / Rejected), withdrawal, resubmit
-- [x] Notifications — real-time approval/rejection notifications, unread badge, mark all read
+- [x] Notifications — multi-select, swipe-to-delete, smart timestamps, mark all read, delete all
 - [x] Profile — blue gradient card, barangay info row
 
 **Notification System:**
-- [x] Firestore `/notifications` collection with `uid`, `type`, `title`, `body`, `is_read`
-- [x] Admin approve → notification to official
-- [x] Admin reject → notification to official with reason
+- [x] Firestore `/notifications` collection
+- [x] Admin approve/reject → notification to official
 - [x] Unread badge on nav bar (live stream)
-- [x] Mark individual / mark all as read
+- [x] Multi-select mode, swipe-to-delete, mark individual/all as read, delete selected/all
 
 **Geofencing & Boundary System:**
 - [x] Restricted area geofence — Haversine circle check, fires on every GPS tick (rider)
-- [x] Barangay boundary geofence — real polygon boundaries from GeoJSON, point-in-polygon ray casting (official submit only)
-- [x] `/barangays` Firestore collection — 934 barangays across 26 municipalities of Eastern Samar seeded
-- [x] `geo_utils.dart` — `isPointInPolygon()` + `firestorePolygonToLatLng()` pure Dart utilities
+- [x] Barangay boundary geofence — real polygon boundaries, point-in-polygon ray casting
+- [x] `/barangays` Firestore collection — 934 barangays, 26 municipalities of Eastern Samar
+- [x] `geo_utils.dart` — `isPointInPolygon()` + `firestorePolygonToLatLng()`
+
+**HC-05 Hardware (Validated):**
+- [x] `flutter_bluetooth_serial` integrated and patched for AGP compatibility
+- [x] HC-05 permanently configured at 9600 baud via AT commands
+- [x] Arduino sketch — OPEN/CLOSE/HELLO command protocol, relay on Pin 8
+- [x] Full two-way communication confirmed (Flutter ↔ HC-05 ↔ Arduino)
+- [x] Relay actuation confirmed — clicks on CLOSE, releases on OPEN
+- [x] `bt_classic_test_screen.dart` — dev test screen, accessible via Super Admin only
 
 ### 🔄 **In Progress / Remaining:**
 - [ ] Firestore security rules tightening (Step 7.19 — HIGH RISK, do last)
 - [ ] Seed Super Admin in Firestore (Step 7.4 — manual, 5 min)
 - [ ] Logo integration (asset pending)
 
-### ⏸️ **Planned (Phase 8 — Blocked):**
-- [ ] ESP32 BLE command protocol definition
-- [ ] Send valve open/close commands via BLE
-- [ ] Automatic exhaust control on geofence entry/exit
+### ⏳ **Planned (Phase 8 — Unblocked):**
+- [ ] Create `ClassicBluetoothService` — wraps HC-05 connection + send logic
+- [ ] Wire `ExhaustProvider` — send `CLOSE`/`OPEN` commands on geofence entry/exit
+- [ ] Replace `BluetoothProvider` BLE scan with HC-05 Classic BT
+- [ ] Log auto-closure events to Firestore
+- [ ] End-to-end test — enter zone → relay clicks → valve closes
+- [ ] Remove `bt_classic_test_screen.dart` + Developer Tools section after Phase 8 validated
 
 ---
 
@@ -112,12 +125,21 @@ cd exhaust_controller_app
 flutter pub get
 ```
 
-3. **Configure Firebase**
+3. **Patch `flutter_bluetooth_serial` build.gradle** *(required after every `flutter pub get` on a fresh machine)*
+```
+Navigate to: ~/.pub-cache/hosted/pub.dev/flutter_bluetooth_serial-0.4.0/android/
+Edit build.gradle:
+  - Add: namespace 'com.example.flutter_bluetooth_serial'
+  - Change: compileSdkVersion to 34
+  - Replace: jcenter() with mavenCentral()
+```
+
+4. **Configure Firebase**
 ```bash
 # Add your google-services.json to android/app/
 ```
 
-4. **Create Firestore composite indexes** (required — app will silently fail without these)
+5. **Create Firestore composite indexes** (required — app will silently fail without these)
 
 | Collection | Field 1 | Field 2 | Order |
 |---|---|---|---|
@@ -127,15 +149,14 @@ flutter pub get
 | `notifications` | `uid` ASC | `created_at` DESC | Collection |
 | `notifications` | `uid` ASC | `is_read` ASC | Collection |
 
-5. **Seed the `/barangays` collection** (one-time setup)
+6. **Seed the `/barangays` collection** (one-time setup)
 ```bash
-# Place serviceAccountKey.json in project root (never commit this)
 npm install firebase-admin
 node seed_barangays.js
 # Expected output: 934 barangays uploaded across 26 municipalities
 ```
 
-6. **Seed Super Admin in Firestore console**
+7. **Seed Super Admin in Firestore console**
 ```
 Collection: users
 Document ID: <Firebase Auth UID of admin account>
@@ -147,7 +168,7 @@ Fields:
   created_at: <timestamp>
 ```
 
-7. **Run the app**
+8. **Run the app**
 ```bash
 flutter run
 ```
@@ -166,6 +187,7 @@ shared_preferences: ^2.5.4
 
 # Hardware
 flutter_blue_plus: 1.31.15
+flutter_bluetooth_serial: ^0.4.0   # HC-05 Classic BT
 geolocator: ^14.0.2
 permission_handler: ^12.0.1
 device_info_plus: ^10.1.0
@@ -193,11 +215,11 @@ flutter_launcher_icons: ^0.14.1
 lib/
 ├── main.dart
 ├── models/
-│   ├── app_user.dart                        # uid, name, email, role, barangayId, isActive
+│   ├── app_user.dart                        # uid, name, email, role, barangayIds (multi), isActive
 │   └── restricted_area.dart                 # GPS zone model with status + Haversine
 ├── providers/
 │   ├── auth_provider.dart
-│   ├── bluetooth_provider.dart              # Real BLE scanning + connection
+│   ├── bluetooth_provider.dart              # BLE scanning + connection
 │   ├── exhaust_provider.dart                # Exhaust state + live location
 │   └── restricted_areas_provider.dart
 ├── services/
@@ -207,33 +229,35 @@ lib/
 │   ├── login_screen.dart
 │   ├── signup_screen.dart
 │   ├── splash_screen.dart
+│   ├── test/
+│   │   └── bt_classic_test_screen.dart      # HC-05 dev test — Super Admin only
 │   ├── shared/
-│   │   └── shared_profile_screen.dart       # Shared across all 3 roles
+│   │   └── shared_profile_screen.dart       # Shared across all 3 roles + Dev Tools (superadmin)
 │   ├── rider/
-│   │   ├── main_navigation_screen.dart      # Custom pro nav (3 tabs)
-│   │   ├── dashboard_screen.dart            # BT + exhaust status + location
-│   │   ├── map_screen.dart                  # OSM + pulsing GPS dot + zones
+│   │   ├── main_navigation_screen.dart
+│   │   ├── dashboard_screen.dart            # BT + exhaust status + location (production-clean)
+│   │   ├── map_screen.dart
 │   │   └── profile_screen.dart
 │   ├── admin/
-│   │   ├── admin_navigation_screen.dart     # Custom pro nav + pending badge
-│   │   ├── admin_home_screen.dart           # Stats + geocoded zones + officials
+│   │   ├── admin_navigation_screen.dart
+│   │   ├── admin_home_screen.dart
 │   │   ├── admin_request_inbox_screen.dart
 │   │   ├── admin_request_detail_screen.dart
-│   │   ├── admin_manage_officials_screen.dart
-│   │   ├── admin_create_official_screen.dart
-│   │   └── admin_global_map_screen.dart     # All zones + pin markers + legend
+│   │   ├── admin_manage_officials_screen.dart  # Multi-barangay, detail screen, assign/remove
+│   │   ├── admin_create_official_screen.dart   # Syncs official_uid to barangay doc
+│   │   └── admin_global_map_screen.dart
 │   └── barangay/
-│       ├── barangay_navigation_screen.dart  # Custom pro nav + notif badge
+│       ├── barangay_navigation_screen.dart
 │       ├── barangay_home_screen.dart
-│       ├── barangay_submit_request_screen.dart  # Polygon boundary check + map overlay
+│       ├── barangay_submit_request_screen.dart  # Polygon boundary + dark overlay + modal
 │       ├── barangay_my_requests_screen.dart
-│       ├── barangay_notifications_screen.dart
+│       ├── barangay_notifications_screen.dart   # Multi-select, swipe-delete, smart timestamps
 │       └── barangay_profile_screen.dart
 └── utils/
     ├── app_colors.dart
     ├── app_text_styles.dart
     ├── permission_handler.dart
-    └── geo_utils.dart                       # NEW — isPointInPolygon + firestorePolygonToLatLng
+    └── geo_utils.dart                       # isPointInPolygon + firestorePolygonToLatLng
 ```
 
 ---
@@ -241,48 +265,17 @@ lib/
 ## 🏘️ Barangay Geofencing System
 
 ### How It Works
-1. Admin assigns a `barangay_id` (e.g. `08-016-001`) to each Barangay Official when creating their account
-2. When the official opens Submit Request screen, the app fetches their barangay's polygon from `/barangays/{barangay_id}`
-3. The polygon boundary is drawn on the map as a blue dashed overlay
+1. Admin assigns a `barangay_id` to each Barangay Official on account creation — `official_uid` is written back to the barangay document (fixes occupancy indicator)
+2. When the official opens Submit Request, the app fetches their barangay polygon from `/barangays/{barangay_id}`
+3. The boundary is drawn on the map as a blue dashed polygon with a dark overlay outside
 4. On every pin drop, `isPointInPolygon()` runs the ray casting algorithm
-5. If the pin is outside — blocked with error message `"Pin must be inside [Barangay Name] only."`
+5. If outside — blocked with a modal (`barrierDismissible: false`, must tap "I Understand")
 6. If inside — submission proceeds normally
 
 ### Data Source
 - **Repo:** `faeldon/philippines-json-maps` — `bgysubmuns` GeoJSON files
 - **Coverage:** Eastern Samar, Region VIII — 26 municipalities, 934 barangays
-- **Accuracy:** Low-resolution GeoJSON — slight boundary inaccuracies possible at edges (acceptable for capstone)
-- **ID Format:** `08-MUN-BRG` (e.g. `08-016-003` = Eastern Samar, Municipality 16 Mercedes, Barangay 3)
-
-### Firestore Structure
-```
-/barangays/{barangay_id}
-  barangay_id: "08-016-001"
-  barangay_name: "Almagro"
-  municipality_name: "Mercedes"
-  municipality_psgc: 806016000
-  barangay_psgc: 806016001
-  province: "Eastern Samar"
-  region: "Region VIII"
-  center_lat: 12.345678
-  center_lng: 125.123456
-  boundary_polygon: [{lat, lng}, {lat, lng}, ...]
-  boundary_radius_m: 2000
-  official_uid: null
-  is_active: true
-```
-
----
-
-## 🗺️ Map Features
-
-- **Real OSM Tiles** — OpenStreetMap tileset, no API key needed
-- **Pulsing GPS Dot** — animated blue dot with white border and pulse ring (all 3 role maps)
-- **Restricted Zone Circles** — red overlays from Firestore, approved only for riders
-- **Barangay Boundary Polygon** — blue dashed polygon on Official submit screen
-- **Color-coded Pins** — green/amber/red per status on admin map
-- **Recenter FAB** — snaps map back to current location
-- **Location Overlay** — live address via reverse geocoding, RESTRICTED badge when in zone
+- **ID Format:** `08-MUN-BRG` (e.g. `08-016-003`)
 
 ---
 
@@ -298,6 +291,7 @@ lib/
 | Receive notifications | ❌ | ✅ | ❌ |
 | BLE + exhaust control | ❌ | ❌ | ✅ |
 | GPS auto-close | ❌ | ❌ | ✅ |
+| HC-05 Developer Tools | ✅ | ❌ | ❌ |
 
 ---
 
@@ -322,13 +316,15 @@ android.permission.INTERNET
 ### ✅ Passing:
 - Login/signup + role routing (all 3 roles)
 - Full submit → approve → rider map flow end-to-end
-- Notification delivery and unread badge
+- Notification delivery, multi-select, swipe-delete, unread badge
 - Reverse geocoding on admin dashboard
 - GPS dot on all 3 maps
 - BLE scanning and connection
 - Restricted area detection
-- Barangay boundary polygon loading on submit screen
-- Pin drop blocked outside boundary
+- Barangay boundary polygon — dark overlay, pin drop blocking, out-of-bounds modal
+- HC-05 two-way communication — OPEN/CLOSE/HELLO confirmed
+- Relay actuation confirmed
+- HC-05 test screen accessible via Super Admin only — not visible to other roles
 
 ### ⏳ Pending:
 - Automatic valve control (Phase 8)
@@ -352,8 +348,10 @@ android.permission.INTERNET
 | 7 (p1) | Multi-Role Foundation + Screens | ✅ Done | Mar 9 |
 | 7 (p2) | Notifications + UI/UX Polish | ✅ Done | Mar 15 |
 | 7 (p3) | Barangay Geofencing + GeoJSON Seeding | ✅ Done | Mar 18 |
+| 7.1 | HC-05 Hardware Validated + Relay Confirmed | ✅ Done | Mar 19 |
+| **7.2** | **Dev Tool Relocation + Dashboard Cleanup** | **✅ Done** | **Mar 21** |
 | 7 (final) | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
-| 8 | BLE Automation | ⏸️ Blocked | TBD |
+| 8 | HC-05 Automation (geofence → relay) | 🟡 Unblocked | TBD |
 
 ---
 
@@ -377,6 +375,6 @@ Capstone Project 2026
 
 ---
 
-**Last Updated:** March 18, 2026
-**Version:** 0.7.0 (patch 3)
-**Status:** Active Development — Phase 7 final steps + Phase 8 pending hardware
+**Last Updated:** March 21, 2026
+**Version:** 0.7.2
+**Status:** Active Development — Phase 7 final steps + Phase 8 unblocked
