@@ -4,6 +4,185 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.3] - Phase 7.3: DC Motor Hardware Test + Relay Wiring Validation
+
+**Status:** ✅ COMPLETED — March 21, 2026
+
+### 🎯 What This Phase Achieved:
+Validated DC motor spin control via single 5V relay module using a dedicated 9V battery as the motor power supply. Confirmed that the existing Arduino sketch (no code changes needed) can spin and stop a DC motor salvaged from an Epson printer using OPEN/CLOSE commands from the Flutter app over HC-05. This serves as the physical prototype foundation for the exhaust valve mechanism.
+
+---
+
+### ✅ Completed This Session — DC Motor Spin Test (March 21, 2026)
+
+---
+
+#### Hardware — DC Motor Wiring (Single Relay, Spin/Stop Only)
+
+**Components used:**
+- Arduino Uno
+- HC-05 Bluetooth module (already wired from Phase 7.1)
+- 5V single-channel relay module (already wired from Phase 7.1)
+- DC motor (salvaged from Epson printer)
+- 9V battery (dedicated motor power supply — separate from Arduino power)
+
+**Pin connections — Arduino to HC-05 (unchanged from Phase 7.1):**
+
+| HC-05 Pin | Arduino Pin |
+|-----------|-------------|
+| VCC | 5V |
+| GND | GND |
+| TX | Pin 6 (SoftwareSerial RX) |
+| RX | Pin 7 (SoftwareSerial TX) |
+
+**Pin connections — Arduino to Relay (unchanged from Phase 7.1):**
+
+| Relay Pin | Arduino Pin |
+|-----------|-------------|
+| S (signal) | Pin 8 |
+| + (power) | 5V |
+| – (ground) | GND |
+
+**New wiring — Relay screw terminals to DC Motor + 9V Battery:**
+
+| From | To | Notes |
+|------|----|-------|
+| 9V Battery (+) positive — small circle terminal | Relay COM screw | Power in to relay |
+| Relay NO screw | DC Motor Wire A (either wire) | Power out when relay ON |
+| 9V Battery (–) negative — large octagon terminal | DC Motor Wire B (other wire) | Completes motor circuit |
+| 9V Battery (–) negative — large octagon terminal | Arduino GND pin | Shared ground — critical, do not skip |
+
+> ⚠️ **Shared ground note:** The 9V battery negative connects to both Motor Wire B AND Arduino GND. In this test, both connections meet at Motor Wire B due to short jumper wire length. This is electrically correct — all ground points are connected together regardless of where they physically meet.
+
+> ⚠️ **9V battery terminal identification:** Small circle = positive (+). Large octagon = negative (–).
+
+> ⚠️ **NC terminal on relay:** Leave NC (normally closed) screw terminal unconnected. Only COM and NO are used.
+
+**How it works:**
+- Relay COM and NO are OPEN by default (no connection)
+- When Arduino sets Pin 8 HIGH → relay energizes → COM and NO connect → current flows from 9V battery through motor → motor spins
+- When Arduino sets Pin 8 LOW → relay de-energizes → COM and NO disconnect → no current → motor stops
+
+---
+
+#### Arduino Sketch — Final (no changes from Phase 7.1)
+
+```cpp
+#include <SoftwareSerial.h>
+
+SoftwareSerial BTSerial(6, 7); // RX=6, TX=7
+
+const int RELAY_PIN = 8;
+
+void setup() {
+  Serial.begin(9600);
+  BTSerial.begin(9600);
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+  Serial.println("Ready. Waiting for BT data...");
+}
+
+void loop() {
+  static unsigned long lastHeartbeat = 0;
+  if (millis() - lastHeartbeat > 2000) {
+    Serial.println("Waiting...");
+    lastHeartbeat = millis();
+  }
+
+  if (BTSerial.available()) {
+    String received = "";
+    while (BTSerial.available()) {
+      received += (char)BTSerial.read();
+      delay(2);
+    }
+    received.trim();
+
+    if (received.length() > 0) {
+      Serial.print("Received: [");
+      Serial.print(received);
+      Serial.print("] length: ");
+      Serial.println(received.length());
+
+      if (received.indexOf("OPEN") >= 0) {
+        digitalWrite(RELAY_PIN, LOW);
+        Serial.println("Relay OFF — exhaust OPEN");
+        BTSerial.println("ACK:OPEN");
+      } else if (received.indexOf("CLOSE") >= 0) {
+        digitalWrite(RELAY_PIN, HIGH);
+        Serial.println("Relay ON — exhaust CLOSED");
+        BTSerial.println("ACK:CLOSE");
+      } else {
+        BTSerial.println("ACK:" + received);
+      }
+    }
+  }
+}
+```
+
+**Command behavior:**
+- `CLOSE` → Pin 8 HIGH → relay clicks → motor spins (one direction only)
+- `OPEN` → Pin 8 LOW → relay clicks → motor stops
+
+---
+
+#### Validation Results
+- ✅ CLOSE command → relay energizes → motor spins confirmed
+- ✅ OPEN command → relay de-energizes → motor stops confirmed
+- ✅ Dedicated 9V battery successfully powers motor without affecting Arduino
+- ✅ Shared ground between 9V battery and Arduino confirmed working
+- ⚠️ Single relay = spin/stop only — no direction reversal possible with current setup
+
+---
+
+#### Known Limitation — Single Relay Cannot Reverse Direction
+
+A single relay can only connect or disconnect power. It cannot swap the polarity on the motor terminals. To achieve clockwise and counter-clockwise rotation (required for the valve open/close prototype), **a second 5V relay module is required.**
+
+With 2 relays wired as a basic H-bridge:
+- Relay 1 HIGH + Relay 2 LOW → current flows Motor A→B → clockwise
+- Relay 1 LOW + Relay 2 HIGH → current flows Motor B→A → counter-clockwise
+- Both LOW → motor stopped
+- Both HIGH → **never do this — short circuit**
+
+---
+
+### 🔜 Next Hardware Steps (Pre-Prototype)
+
+| Task | Notes | Status |
+|------|-------|--------|
+| Acquire second 5V relay module | Same type as current relay | ⏳ Pending |
+| Solder current wiring permanently | Breadboard → soldered connections | ⏳ Pending |
+| Wire second relay for direction control | H-bridge config — Relay 1 = Pin 8, Relay 2 = Pin 9 | ⏳ Pending |
+| Update Arduino sketch for CW/CCW | Add RELAY_PIN_2, update OPEN/CLOSE logic for direction | ⏳ Pending |
+| Test CW and CCW motor spin | Confirm both directions work from app | ⏳ Pending |
+| Build valve/cover prototype | Attach motor to physical exhaust cover mechanism | ⏳ Pending |
+| Test geofence → motor 90°/180° rotation | Enter restricted area → motor rotates to close cover → exit → motor rotates back | ⏳ Pending |
+
+---
+
+### 🗂️ Folder Impact
+```
+lib/
+├── screens/
+│   ├── shared/
+│   │   └── shared_profile_screen.dart    ℹ️  Unchanged
+│   ├── rider/
+│   │   └── dashboard_screen.dart         ℹ️  Unchanged
+│   └── test/
+│       └── bt_classic_test_screen.dart   ℹ️  Unchanged — used for this motor test session
+```
+
+> No Flutter code changes this session. All work was hardware wiring and validation.
+
+---
+
+### ⚠️ Still Pending in Phase 7
+- [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
+- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
+- [ ] **7.20** — FCM push notifications (optional)
+
+---
+
 ## [0.7.2] - Phase 7.2: UI Hardening, Dev Tool Relocation & Dashboard Cleanup
 
 **Status:** ✅ COMPLETED — March 21, 2026
@@ -14,8 +193,6 @@ Cleaned up the rider dashboard by fully removing the temporary HC-05 dev test sh
 ---
 
 ### ✅ Completed This Session — Dev Tool Relocation + Dashboard Cleanup (March 21, 2026)
-
----
 
 #### Feature — `lib/screens/shared/shared_profile_screen.dart` updated
 - **Added:** `import '../test/bt_classic_test_screen.dart'`
@@ -86,8 +263,6 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
 
 ### ✅ Completed This Session — HC-05 BT + Relay Validation (March 19, 2026)
 
----
-
 #### Feature — Classic Bluetooth (HC-05) Flutter Integration
 - **Added:** `flutter_bluetooth_serial: ^0.4.0` to `pubspec.yaml`
 - **Note:** Coexists with existing `flutter_blue_plus` — separate packages, no conflict
@@ -106,12 +281,6 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
   - Status bar at top — green when connected, red when not
 - **Note:** Dev-only screen — accessible via Super Admin profile → Developer Tools
 
-#### Feature — `lib/screens/rider/dashboard_screen.dart` updated
-- **Added:** `_DevTestButton` widget at bottom of dashboard body *(temp — removed in v0.7.2)*
-- **Note:** Marked TODO — removed in patch 0.7.2
-
----
-
 #### Hardware — HC-05 Module Configuration
 - **Issue:** HC-05 default baud rate was 115200 — too fast for `SoftwareSerial` on Arduino Uno
 - **Fix:** Entered AT mode and permanently set baud to 9600:
@@ -129,15 +298,6 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
 | Relay S | Pin 8 |
 | Relay + | 5V |
 | Relay - | GND |
-
-#### Hardware — Arduino Sketch (Final)
-- **SoftwareSerial** on pins 6/7 at 9600 baud
-- **Relay** on Pin 8 — `LOW` = off (exhaust open), `HIGH` = on (exhaust closed)
-- **Command protocol:**
-  - `OPEN` → `digitalWrite(RELAY_PIN, LOW)` → ACK:OPEN
-  - `CLOSE` → `digitalWrite(RELAY_PIN, HIGH)` → ACK:CLOSE
-  - Other → echoes ACK back
-- **String matching:** Uses `indexOf()` — handles hidden `\r\n` from Flutter serial send
 
 #### Validation Results
 - ✅ Flutter → HC-05 → Arduino: HELLO, OPEN, CLOSE received correctly
@@ -286,8 +446,10 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 | 0.7.0 (patch 2) | Notifications, UI/UX Polish, Pro Nav, Profile Redesign | ✅ Complete | Mar 15, 2026 |
 | 0.7.0 (patch 3) | Barangay Geofencing + GeoJSON Seeding + Boundary Check | ✅ Complete | Mar 18, 2026 |
 | 0.7.1 | HC-05 Classic BT Validation + Relay Test | ✅ Complete | Mar 19, 2026 |
-| **0.7.2** | **Dev Tool Relocation + Rider Dashboard Cleanup** | **✅ Complete** | **Mar 21, 2026** |
-| 0.8.0 | Core HC-05 Automation (geofence → relay) | 🟡 Unblocked | TBD |
+| 0.7.2 | Dev Tool Relocation + Rider Dashboard Cleanup | ✅ Complete | Mar 21, 2026 |
+| **0.7.3** | **DC Motor Spin Test + Relay Wiring Validation** | **✅ Complete** | **Mar 21, 2026** |
+| 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next | TBD |
+| 0.8.0 | Core HC-05 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
 
 ---
 

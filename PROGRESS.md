@@ -6,15 +6,16 @@
 
 ---
 
-## 🎯 Overall Progress: ~92% Complete
+## 🎯 Overall Progress: ~93% Complete
 
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
 > Phase 7 is ~98% done. HC-05 hardware validated — relay clicks on OPEN/CLOSE.
-> Dev tooling cleaned up — HC-05 test screen moved to Super Admin only, rider dashboard is production-clean.
-> Phase 8 is now unblocked and ready to wire.
+> DC motor spin test completed — motor spins and stops via CLOSE/OPEN from Flutter app.
+> Next hardware step: acquire second relay, solder wiring, wire CW/CCW direction control.
+> Phase 8 automation is unblocked and ready to wire once direction control is confirmed.
 
 ```
-[██████████████████████████████░░] 92%
+[███████████████████████████████░] 93%
 ```
 
 ### Scope Breakdown:
@@ -28,12 +29,165 @@
 | UI/UX Polish | 100% | All 3 roles — pro navbars, profile redesign, map improvements ✅ |
 | End-to-end flow | ✅ Working | Submit → Admin inbox → Approve/Reject → Rider map + Official notification |
 | HC-05 Hardware Validation | 100% | Two-way comms confirmed, relay clicks ✅ |
+| DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
 | Dev Tooling / Code Hygiene | 100% | Dev test screen role-gated, rider dashboard production-clean ✅ |
+| Hardware Prototype (CW/CCW + valve) | 0% | Needs second relay + soldering + prototype build |
 | Phase 8 BLE Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
 
 ---
 
 ## 📋 PHASE DETAILS
+
+---
+
+### ✅ PHASE 7.3: DC MOTOR SPIN TEST + RELAY WIRING VALIDATION (100% Complete)
+
+**Status:** ✅ COMPLETE — March 21, 2026
+
+| Task | Status |
+|------|--------|
+| Wire 9V battery positive to relay COM | ✅ Done |
+| Wire relay NO to DC motor Wire A | ✅ Done |
+| Wire 9V battery negative to DC motor Wire B | ✅ Done |
+| Wire 9V battery negative to Arduino GND (shared ground) | ✅ Done |
+| Confirm CLOSE command spins motor | ✅ Done |
+| Confirm OPEN command stops motor | ✅ Done |
+| Confirm no Arduino code changes needed | ✅ Done |
+
+#### Full Wiring Reference — Current Hardware State
+
+**HC-05 to Arduino:**
+| HC-05 Pin | Arduino Pin |
+|-----------|-------------|
+| VCC | 5V |
+| GND | GND |
+| TX | Pin 6 (SoftwareSerial RX) |
+| RX | Pin 7 (SoftwareSerial TX) |
+
+**Relay to Arduino:**
+| Relay Pin | Arduino Pin |
+|-----------|-------------|
+| S (signal) | Pin 8 |
+| + (power) | 5V |
+| – (ground) | GND |
+
+**Relay screw terminals + 9V battery + DC motor:**
+| From | To |
+|------|----|
+| 9V battery (+) small circle | Relay COM |
+| Relay NO | DC Motor Wire A |
+| 9V battery (–) large octagon | DC Motor Wire B |
+| 9V battery (–) large octagon | Arduino GND |
+
+> **Shared ground:** 9V battery (–) connects to both Motor Wire B and Arduino GND.
+> In this test session both connections meet at Motor Wire B terminal. Electrically correct.
+
+> **9V battery terminals:** Small circle = positive (+). Large octagon = negative (–).
+
+> **Relay NC terminal:** Left unconnected. Not used.
+
+#### Current Behavior
+```
+CLOSE command → Pin 8 HIGH → relay energizes → NO closes → motor spins (one direction)
+OPEN command  → Pin 8 LOW  → relay de-energizes → NO opens → motor stops
+```
+
+#### Current Limitation
+Single relay = spin and stop only. No direction reversal. CW/CCW requires a second relay.
+
+---
+
+### 🔜 PHASE 7.4: SECOND RELAY + SOLDER + CW/CCW DIRECTION CONTROL
+
+**Status:** ⏳ NEXT
+
+| Task | Notes | Status |
+|------|-------|--------|
+| Acquire second 5V single-channel relay module | Same type as current | ⏳ Pending |
+| Solder all current wiring permanently | Breadboard → soldered | ⏳ Pending |
+| Wire second relay signal to Arduino Pin 9 | New relay S → Pin 9 | ⏳ Pending |
+| Wire second relay power to Arduino 5V and GND | Same as Relay 1 power | ⏳ Pending |
+| Wire H-bridge motor connections for 2 relays | See wiring plan below | ⏳ Pending |
+| Update Arduino sketch — add RELAY_PIN_2, CW/CCW logic | See sketch plan below | ⏳ Pending |
+| Test CW spin from app (CLOSE) | Motor rotates clockwise | ⏳ Pending |
+| Test CCW spin from app (OPEN) | Motor rotates counter-clockwise | ⏳ Pending |
+| Build physical valve/cover prototype | Attach motor shaft to exhaust cover | ⏳ Pending |
+| Test 90°/180° rotation and return | Enter zone → cover closes (90° or 180°) → exit zone → cover opens | ⏳ Pending |
+| Test full geofence → motor rotation end-to-end | GPS enter zone → CLOSE sent → relay → motor rotates → cover closes | ⏳ Pending |
+
+#### Planned Wiring — 2 Relay H-Bridge
+
+| From | To | Notes |
+|------|----|-------|
+| Arduino Pin 8 | Relay 1 S | Controls direction A |
+| Arduino Pin 9 | Relay 2 S | Controls direction B |
+| 9V battery (+) | Relay 1 COM | Power in |
+| 9V battery (+) | Relay 2 COM | Power in |
+| Relay 1 NO | DC Motor Wire A | |
+| Relay 2 NO | DC Motor Wire B | |
+| 9V battery (–) | DC Motor Wire B (via Relay 2 NC or direct) | Return path |
+| 9V battery (–) | Arduino GND | Shared ground |
+
+> ⚠️ **Never set both relays HIGH at the same time — short circuit.**
+
+#### Planned Arduino Sketch — CW/CCW
+
+```cpp
+#include <SoftwareSerial.h>
+
+SoftwareSerial BTSerial(6, 7);
+
+const int RELAY_PIN_1 = 8;  // CW direction
+const int RELAY_PIN_2 = 9;  // CCW direction
+
+void setup() {
+  Serial.begin(9600);
+  BTSerial.begin(9600);
+  pinMode(RELAY_PIN_1, OUTPUT);
+  pinMode(RELAY_PIN_2, OUTPUT);
+  digitalWrite(RELAY_PIN_1, LOW);
+  digitalWrite(RELAY_PIN_2, LOW);
+  Serial.println("Ready.");
+}
+
+void loop() {
+  if (BTSerial.available()) {
+    String received = "";
+    while (BTSerial.available()) {
+      received += (char)BTSerial.read();
+      delay(2);
+    }
+    received.trim();
+
+    if (received.indexOf("CLOSE") >= 0) {
+      // Spin CW — close the exhaust cover
+      digitalWrite(RELAY_PIN_2, LOW);   // safety: stop opposite first
+      delay(50);
+      digitalWrite(RELAY_PIN_1, HIGH);  // CW
+      Serial.println("Motor CW — exhaust CLOSED");
+      BTSerial.println("ACK:CLOSE");
+
+    } else if (received.indexOf("OPEN") >= 0) {
+      // Spin CCW — open the exhaust cover
+      digitalWrite(RELAY_PIN_1, LOW);   // safety: stop opposite first
+      delay(50);
+      digitalWrite(RELAY_PIN_2, HIGH);  // CCW
+      Serial.println("Motor CCW — exhaust OPEN");
+      BTSerial.println("ACK:OPEN");
+
+    } else if (received.indexOf("STOP") >= 0) {
+      digitalWrite(RELAY_PIN_1, LOW);
+      digitalWrite(RELAY_PIN_2, LOW);
+      Serial.println("Motor STOPPED");
+      BTSerial.println("ACK:STOP");
+    }
+  }
+}
+```
+
+> **Note:** The planned sketch above will need a timed stop after rotation reaches 90° or 180°.
+> A `delay()` based stop is acceptable for the prototype. Proper position sensing (limit switch
+> or encoder) can be added after the prototype is validated.
 
 ---
 
@@ -53,11 +207,6 @@
 | `flutter analyze` — zero errors confirmed | ✅ Done |
 | Commit + push to main | ✅ Done |
 
-> **Remark:** Phase 8 task 8.7 ("Remove `_DevTestButton` from production build") is now ✅ complete.
-> The HC-05 test screen still exists at `lib/screens/test/bt_classic_test_screen.dart` and remains
-> accessible exclusively through Super Admin → Profile → Developer Tools. It will be fully deleted
-> at the end of Phase 8 after the automation is wired and validated.
-
 ---
 
 ### ✅ PHASE 7.1: HC-05 HARDWARE VALIDATION (100% Complete)
@@ -69,31 +218,17 @@
 | Add `flutter_bluetooth_serial` package | ✅ Done |
 | Fix `build.gradle` namespace AGP issue | ✅ Done |
 | Create `bt_classic_test_screen.dart` | ✅ Done |
-| Add dev test button to rider dashboard (temp) | ✅ Done → Removed in 0.7.2 |
 | Configure HC-05 baud rate via AT commands (9600) | ✅ Done |
 | Wire HC-05 TX→Pin6, RX→Pin7, Relay→Pin8 | ✅ Done |
 | Validate Flutter → Arduino command receive | ✅ Done |
 | Validate Arduino → Flutter ACK response | ✅ Done |
 | Validate relay actuation on OPEN/CLOSE | ✅ Done |
 
-#### Key Technical Details:
-- **HC-05 baud:** 9600 (permanently set via AT+UART=9600,0,0)
-- **SoftwareSerial pins:** RX=6, TX=7
-- **Relay pin:** 8 — LOW=open, HIGH=closed
-- **Command matching:** `indexOf()` — handles hidden `\r\n` from Flutter serial
-- **Package fix:** Patched `flutter_bluetooth_serial` cache `build.gradle` — namespace + compileSdkVersion 34 + mavenCentral
-
 ---
 
 ### 🔄 PHASE 7: MULTI-ROLE SYSTEM EXPANSION (~98% of phase complete)
 
 **Status:** 🔄 IN PROGRESS
-**Date Started:** March 2026
-
-#### Progress:
-```
-[████████████████████████████████] ~98% of phase
-```
 
 #### Step Checklist:
 
@@ -127,10 +262,10 @@
 
 ---
 
-### ⚠️ Immediate Next Actions (Phase 7 tail)
+### ⚠️ Immediate Next Actions
 1. **Step 7.4** — Seed Super Admin in Firestore console (manual, 5 min)
 2. **Step 7.19** — Tighten Firestore security rules (do last, high risk)
-3. **Step 7.20** — FCM push notifications (optional)
+3. **Phase 7.4 hardware** — Acquire second relay, solder wiring, wire CW/CCW
 
 ---
 
@@ -145,40 +280,8 @@
 | 8.3 | Wire `ExhaustProvider` — send `OPEN` on geofence exit | ⏳ Next |
 | 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT | ⏳ Next |
 | 8.5 | Log auto-closure events to Firestore | ⏳ Next |
-| 8.6 | End-to-end test — enter zone → relay clicks → valve closes | ⏳ Next |
+| 8.6 | End-to-end test — enter zone → relay clicks → motor rotates → cover closes | ⏳ Next |
 | 8.7 | ~~Remove `_DevTestButton` + `bt_classic_test_screen.dart` from build~~ | ✅ Done (0.7.2) |
-
-> **Remark:** 8.7 is already done. When Phase 8 automation is complete and validated, delete
-> `lib/screens/test/bt_classic_test_screen.dart` entirely and remove the Developer Tools
-> section from `shared_profile_screen.dart`.
-
----
-
-### ✅ PHASE 6.1: PATCHES & BACKGROUND GPS (100% Complete)
-**Status:** ✅ COMPLETE — March 5, 2026
-
-### ✅ PHASE 6: MAP INTEGRATION (100% Complete)
-**Status:** ✅ COMPLETE — February 17, 2026
-
-### ✅ PHASE 5: GPS & LOCATION SERVICES (100% Complete)
-**Status:** ✅ COMPLETE — February 17, 2026
-
-### ✅ PHASE 4: BLUETOOTH INTEGRATION (100% Complete)
-**Status:** ✅ COMPLETE — February 17, 2026
-
-### ✅ PHASE 3: DEVICE PERMISSIONS (100% Complete)
-**Status:** ✅ COMPLETE — February 11, 2026
-
-### ✅ PHASE 2: DASHBOARD & NAVIGATION (100% Complete)
-**Status:** ✅ COMPLETE — February 11, 2026
-
-### 🔄 PHASE 1: UI/UX FOUNDATION (80% Complete)
-- [x] Color system, typography, CustomButton, CustomTextField
-- [x] Branded splash, login/signup screens
-- [ ] ⏳ Logo integration (waiting for asset)
-
-### ✅ PHASE 0: FOUNDATION (100% Complete)
-Firebase Auth, Provider, basic routing, core screens.
 
 ---
 
@@ -234,9 +337,12 @@ flutter_launcher_icons: ^0.14.1
 | 12 | Notifications + UI/UX Polish (all 3 roles) | ✅ Done | Mar 15 |
 | 13 | Barangay Boundary Check + GeoJSON Seeding | ✅ Done | Mar 18 |
 | 14 | HC-05 Hardware Validated + Relay Confirmed | ✅ Done | Mar 19 |
-| **15** | **Dev Tool Relocation + Rider Dashboard Production-Clean** | **✅ Done** | **Mar 21** |
-| 16 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
-| 17 | MVP Complete (Phase 8 Automation) | ⏳ Next | TBD |
+| 15 | Dev Tool Relocation + Rider Dashboard Production-Clean | ✅ Done | Mar 21 |
+| **16** | **DC Motor Spin Test Validated** | **✅ Done** | **Mar 21** |
+| 17 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| 18 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
+| 19 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
+| 20 | MVP Complete (Phase 8 Full Automation) | ⏳ Next | TBD |
 
 ---
 
@@ -252,6 +358,9 @@ flutter_launcher_icons: ^0.14.1
 | `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs |
 | Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
 | Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
+| Motor rotation needs timed stop | Medium | Currently no stop after 90°/180° — needs delay() or limit switch |
+| Single relay — no direction control yet | Medium | Needs second relay for CW/CCW — tracked in Phase 7.4 |
+| Breadboard wiring not yet soldered | Medium | Solder before prototype demo |
 | `barangay_profile_screen.dart` still a placeholder | Low | Uses shared profile — functional |
 | Old test zone documents missing `submitted_by_name` | Low | Only affects pre-patch documents |
 | iOS Info.plist not configured | Low | Android only for capstone |
