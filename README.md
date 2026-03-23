@@ -16,7 +16,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - 🔔 **In-App Notifications:** Officials receive real-time approval/rejection notifications via Firestore streams
 - 📊 **Admin Dashboard:** Live stats, zone management, official management, global map
 - 👤 **User Accounts:** Firebase Auth with role-based routing — role read from Firestore on login
-- 🏘️ **Barangay Geofencing:** Officials can only submit zones inside their assigned barangay — enforced via real GeoJSON polygon boundaries (934 barangays, Eastern Samar)
+- 🏘️ **Barangay Geofencing:** Officials can only submit zones inside their assigned barangay — enforced via manually created polygon boundaries (currently 16 barangays in Guiuan, Eastern Samar)
 - 🔧 **Dev Tools:** HC-05 hardware test screen accessible exclusively to Super Admin via profile settings
 
 ---
@@ -36,8 +36,9 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | UI/UX Polish | 100% | All 3 roles complete ✅ |
 | HC-05 Hardware Validation | 100% | Two-way comms + relay confirmed ✅ |
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
+| Barangay Polygon Seeding | 100% | 16 barangays seeded — more to be added ✅ |
 | Hardware Prototype (CW/CCW) | 0% | Needs second relay + soldering |
-| Phase 8 BLE Automation | 0% | Unblocked — ready to wire |
+| Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire |
 
 ---
 
@@ -79,11 +80,21 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] DC motor spin test confirmed — motor spins/stops via relay from Flutter app
 - [x] Dedicated 9V battery for motor, shared ground with Arduino confirmed
 
+**Barangay Data:**
+- [x] 16 barangays seeded in Guiuan, Eastern Samar (Lupok, Salug, Poblacion Wards 1–12 including 4-A and 9-A)
+- [x] All polygon boundaries manually created — no third-party GeoJSON dependency
+- [x] Seeding script (`add_barangay.js`) supports incremental additions
+
+---
+
 ## 🔄 In Progress / Remaining
 
 - [ ] Firestore security rules tightening — Step 7.19, HIGH RISK, do last before demo
 - [ ] Seed Super Admin in Firestore console — Step 7.4, manual 5 min
 - [ ] Logo integration — asset pending
+- [ ] Additional barangays to be added to seeding script as needed
+
+---
 
 ## ⏳ Next — Phase 7.4: Second Relay + Solder + CW/CCW
 
@@ -205,8 +216,6 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | **Firebase Auth** | User authentication, session management |
 | **Cloud Firestore** | All app data — users, zones, barangays, notifications |
 | **OpenStreetMap (OSM)** | Free map tiles served via `flutter_map` — no API key required |
-| **Nominatim** | OSM geocoding API — used during barangay GeoJSON seeding to resolve coordinates |
-| **Overpass API** | OSM query API — used during barangay boundary polygon extraction from GeoJSON |
 | **Firebase Cloud Messaging (FCM)** | Push notifications — optional, planned for Phase 7.20 |
 
 ---
@@ -216,8 +225,8 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | Tool | Purpose |
 |------|---------|
 | **Node.js v18+** | Runs the barangay seeding script |
-| **firebase-admin (npm)** | Node.js Firebase Admin SDK — used to write 934 barangay documents to Firestore |
-| **GeoJSON source** | `faeldon/philippines-json-maps` — `bgysubmuns` files, Eastern Samar Region VIII |
+| **firebase-admin (npm)** | Node.js Firebase Admin SDK — used to write barangay documents to Firestore |
+| **add_barangay.js** | Custom seeding script — polygon coordinates manually defined per barangay, supports incremental additions |
 | **Firestore console** | Manual Super Admin seed — one-time setup, no script |
 
 ---
@@ -264,7 +273,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 
 ---
 
-## 🧪 Arduino Sketch — Current (v0.7.3, no changes needed for spin test)
+## 🧪 Arduino Sketch — Current (v0.7.3)
 
 ```cpp
 #include <SoftwareSerial.h>
@@ -348,20 +357,20 @@ void loop() {
     received.trim();
 
     if (received.indexOf("CLOSE") >= 0) {
-      digitalWrite(RELAY_PIN_2, LOW);  // stop opposite first — safety
+      digitalWrite(RELAY_PIN_2, LOW);
       delay(50);
-      digitalWrite(RELAY_PIN_1, HIGH); // CW — close cover
-      delay(600);                       // rotate ~90°–180°, tune this value
-      digitalWrite(RELAY_PIN_1, LOW);  // stop
+      digitalWrite(RELAY_PIN_1, HIGH);
+      delay(600);                       // tune for your motor speed
+      digitalWrite(RELAY_PIN_1, LOW);
       Serial.println("Motor CW — exhaust CLOSED");
       BTSerial.println("ACK:CLOSE");
 
     } else if (received.indexOf("OPEN") >= 0) {
-      digitalWrite(RELAY_PIN_1, LOW);  // stop opposite first — safety
+      digitalWrite(RELAY_PIN_1, LOW);
       delay(50);
-      digitalWrite(RELAY_PIN_2, HIGH); // CCW — open cover
-      delay(600);                       // rotate ~90°–180°, tune this value
-      digitalWrite(RELAY_PIN_2, LOW);  // stop
+      digitalWrite(RELAY_PIN_2, HIGH);
+      delay(600);                       // tune for your motor speed
+      digitalWrite(RELAY_PIN_2, LOW);
       Serial.println("Motor CCW — exhaust OPEN");
       BTSerial.println("ACK:OPEN");
 
@@ -375,7 +384,7 @@ void loop() {
 }
 ```
 
-> **Note on `delay(600)`:** This is a timed stop. The motor runs for 600ms then cuts power. Tune this value based on your actual motor speed and the rotation angle needed for your prototype cover. A limit switch replacing the delay is the proper long-term fix — flagged in technical debt.
+> **Note on `delay(600)`:** Timed stop — tune based on actual motor speed and rotation angle needed. A limit switch is the proper long-term fix — flagged in technical debt.
 
 ---
 
@@ -434,8 +443,10 @@ Edit build.gradle:
 **6. Seed `/barangays` collection (one-time)**
 ```bash
 npm install firebase-admin
-node seed_barangays.js
-# Expected: 934 barangays uploaded across 26 municipalities of Eastern Samar
+node add_barangay.js
+# Uploads all barangays defined in the BARANGAYS object
+# Currently: 16 barangays in Guiuan, Eastern Samar
+# Safe to re-run — overwrites existing documents
 ```
 
 **7. Seed Super Admin in Firestore console (one-time, manual)**
@@ -510,11 +521,15 @@ lib/
 │       ├── barangay_my_requests_screen.dart
 │       ├── barangay_notifications_screen.dart
 │       └── barangay_profile_screen.dart
-└── utils/
-    ├── app_colors.dart
-    ├── app_text_styles.dart
-    ├── permission_handler.dart
-    └── geo_utils.dart                         # isPointInPolygon + firestorePolygonToLatLng
+├── utils/
+│   ├── app_colors.dart
+│   ├── app_text_styles.dart
+│   ├── permission_handler.dart
+│   └── geo_utils.dart                         # isPointInPolygon + firestorePolygonToLatLng
+└── widgets/
+    ├── bluetooth_connection_modal.dart
+    ├── custom_button.dart
+    └── custom_text_field.dart
 ```
 
 ---
@@ -558,9 +573,11 @@ android.permission.INTERNET
 5. Outside boundary — blocked with modal (`barrierDismissible: false`, must tap "I Understand")
 6. Inside boundary — submission proceeds
 
-**Data source:** `faeldon/philippines-json-maps` — `bgysubmuns` GeoJSON, Eastern Samar Region VIII
-**Coverage:** 26 municipalities, 934 barangays
-**ID format:** `08-MUN-BRG` (e.g. `08-016-003`)
+**Polygon data:** Manually created per barangay — no third-party GeoJSON dependency
+**Current coverage:** 16 barangays in Guiuan, Eastern Samar
+- Lupok, Salug
+- Poblacion Wards 1, 2, 3, 4, 4-A, 5, 6, 7, 8, 9, 9-A, 10, 11, 12
+**Seeding script:** `add_barangay.js` — add new entries to `BARANGAYS` object and re-run to expand
 
 ---
 
@@ -597,10 +614,11 @@ android.permission.INTERNET
 | 0.6.1 | Patches + Background GPS | ✅ Done | Mar 5 |
 | 0.7.0 p1 | Multi-Role Foundation + Admin/Barangay Screens | ✅ Done | Mar 9 |
 | 0.7.0 p2 | Notifications + UI/UX Polish | ✅ Done | Mar 15 |
-| 0.7.0 p3 | Barangay Geofencing + GeoJSON Seeding | ✅ Done | Mar 18 |
+| 0.7.0 p3 | Barangay Geofencing + Manual Polygon Seeding | ✅ Done | Mar 18 |
 | 0.7.1 | HC-05 Hardware Validation + Relay Confirmed | ✅ Done | Mar 19 |
 | 0.7.2 | Dev Tool Relocation + Dashboard Cleanup | ✅ Done | Mar 21 |
-| **0.7.3** | **DC Motor Spin Test Validated** | **✅ Done** | **Mar 21** |
+| 0.7.3 | DC Motor Spin Test Validated | ✅ Done | Mar 21 |
+| **0.7.3 p1** | **Barangay Polygon Expansion — 16 barangays seeded** | **✅ Done** | **Mar 23** |
 | 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
 | 0.7.5 | Physical Valve Prototype + Rotation Test | ⏳ Next | TBD |
 | 0.7.x | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
@@ -625,6 +643,7 @@ android.permission.INTERNET
 - Relay actuation — clicks on CLOSE, releases on OPEN
 - DC motor spin — spins on CLOSE, stops on OPEN, 9V battery dedicated power
 - HC-05 test screen — accessible via Super Admin only, not visible to other roles
+- Barangay polygon seeding — 16 barangays uploaded successfully via `add_barangay.js`
 
 ### ⏳ Pending
 - CW/CCW motor direction (needs second relay)
@@ -654,6 +673,6 @@ Development Team — Capstone Project 2026
 
 ---
 
-**Last Updated:** March 21, 2026
-**Version:** 0.7.3
+**Last Updated:** March 23, 2026
+**Version:** 0.7.3 patch 1
 **Status:** Active Development — Phase 7.4 hardware next, Phase 8 unblocked

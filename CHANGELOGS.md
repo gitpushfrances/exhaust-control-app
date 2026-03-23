@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.3 patch 1] - Barangay Polygon Expansion
+
+**Status:** ✅ COMPLETED — March 23, 2026
+
+### 🎯 What This Phase Achieved:
+Expanded the `/barangays` Firestore collection from 2 entries to 16 by seeding 14 Poblacion ward polygons for Guiuan, Eastern Samar. All polygon boundaries were manually created. Uploaded via the existing `add_barangay.js` Node.js seeding script.
+
+### ✅ Barangays Seeded
+
+| Document ID | Barangay | Points | Result |
+|-------------|----------|--------|--------|
+| guiuan-lupok | Lupok | 51 | Overwritten (re-upload) |
+| guiuan-salug | Salug | 23 | Overwritten (re-upload) |
+| guiuan-poblacion-ward-1 | Poblacion Ward 1 | 16 | New |
+| guiuan-poblacion-ward-2 | Poblacion Ward 2 | 8 | New |
+| guiuan-poblacion-ward-3 | Poblacion Ward 3 | 19 | New |
+| guiuan-poblacion-ward-4 | Poblacion Ward 4 | 25 | Overwritten (was seeded earlier) |
+| guiuan-poblacion-ward-4a | Poblacion Ward 4-A | 10 | New |
+| guiuan-poblacion-ward-5 | Poblacion Ward 5 | 25 | New |
+| guiuan-poblacion-ward-6 | Poblacion Ward 6 | 36 | New |
+| guiuan-poblacion-ward-7 | Poblacion Ward 7 | 20 | New |
+| guiuan-poblacion-ward-8 | Poblacion Ward 8 | 20 | New |
+| guiuan-poblacion-ward-9 | Poblacion Ward 9 | 12 | New |
+| guiuan-poblacion-ward-9a | Poblacion Ward 9-A | 16 | New |
+| guiuan-poblacion-ward-10 | Poblacion Ward 10 | 30 | New |
+| guiuan-poblacion-ward-11 | Poblacion Ward 11 | 35 | New |
+| guiuan-poblacion-ward-12 | Poblacion Ward 12 | 19 | New |
+
+### 🗂️ Folder Impact
+> No Flutter code changes. All work was Firestore data seeding via Node.js script.
+
+### 📝 Notes
+- Polygon coordinates hand-crafted per barangay — no third-party GeoJSON source
+- Script (`add_barangay.js`) overwrites existing documents safely — safe to re-run
+- More barangays to be added incrementally as needed
+
+---
+
 ## [0.7.3] - Phase 7.3: DC Motor Hardware Test + Relay Wiring Validation
 
 **Status:** ✅ COMPLETED — March 21, 2026
@@ -14,8 +52,6 @@ Validated DC motor spin control via single 5V relay module using a dedicated 9V 
 ---
 
 ### ✅ Completed This Session — DC Motor Spin Test (March 21, 2026)
-
----
 
 #### Hardware — DC Motor Wiring (Single Relay, Spin/Stop Only)
 
@@ -376,9 +412,10 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 ---
 
 ### ✅ Completed — Barangay Geofencing + Data Seeding (March 18, 2026)
-- Real polygon boundaries from GeoJSON (`faeldon/philippines-json-maps`)
-- 934 barangays seeded across 26 municipalities of Eastern Samar
+- Real polygon boundaries manually created and seeded via custom Node.js script (`add_barangay.js`)
 - `geo_utils.dart` — `isPointInPolygon()` ray casting + `firestorePolygonToLatLng()`
+- Initial seed: Lupok + Salug (Guiuan, Eastern Samar)
+- Expanded to 16 barangays in patch 0.7.3 patch 1 (March 23, 2026)
 
 ---
 
@@ -444,14 +481,15 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 | 0.6.1 | Patches & Background GPS | ✅ Complete | Mar 5, 2026 |
 | 0.7.0 (patch 1) | Multi-Role Foundation + Admin/Barangay Screens | ✅ Complete | Mar 9, 2026 |
 | 0.7.0 (patch 2) | Notifications, UI/UX Polish, Pro Nav, Profile Redesign | ✅ Complete | Mar 15, 2026 |
-| 0.7.0 (patch 3) | Barangay Geofencing + GeoJSON Seeding + Boundary Check | ✅ Complete | Mar 18, 2026 |
+| 0.7.0 (patch 3) | Barangay Geofencing + Manual Polygon Seeding + Boundary Check | ✅ Complete | Mar 18, 2026 |
 | 0.7.1 | HC-05 Classic BT Validation + Relay Test | ✅ Complete | Mar 19, 2026 |
 | 0.7.2 | Dev Tool Relocation + Rider Dashboard Cleanup | ✅ Complete | Mar 21, 2026 |
-| **0.7.3** | **DC Motor Spin Test + Relay Wiring Validation** | **✅ Complete** | **Mar 21, 2026** |
+| 0.7.3 | DC Motor Spin Test + Relay Wiring Validation | ✅ Complete | Mar 21, 2026 |
+| **0.7.3 patch 1** | **Barangay Polygon Expansion — 16 barangays seeded** | **✅ Complete** | **Mar 23, 2026** |
 | 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next | TBD |
 | 0.8.0 | Core HC-05 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** March 21, 2026
+**Last Updated:** March 23, 2026

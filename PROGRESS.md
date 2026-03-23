@@ -2,7 +2,7 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** March 21, 2026
+**Last Updated:** March 23, 2026
 
 ---
 
@@ -11,6 +11,7 @@
 > ⚠️ Scope expanded to include 3-role system (Super Admin + Barangay Official + Rider).
 > Phase 7 is ~98% done. HC-05 hardware validated — relay clicks on OPEN/CLOSE.
 > DC motor spin test completed — motor spins and stops via CLOSE/OPEN from Flutter app.
+> Barangay polygon seeding expanded to 16 barangays — all manually created, no third-party source.
 > Next hardware step: acquire second relay, solder wiring, wire CW/CCW direction control.
 > Phase 8 automation is unblocked and ready to wire once direction control is confirmed.
 
@@ -30,13 +31,49 @@
 | End-to-end flow | ✅ Working | Submit → Admin inbox → Approve/Reject → Rider map + Official notification |
 | HC-05 Hardware Validation | 100% | Two-way comms confirmed, relay clicks ✅ |
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
+| Barangay Polygon Seeding | 100% | 16 barangays seeded — more to be added incrementally ✅ |
 | Dev Tooling / Code Hygiene | 100% | Dev test screen role-gated, rider dashboard production-clean ✅ |
 | Hardware Prototype (CW/CCW + valve) | 0% | Needs second relay + soldering + prototype build |
-| Phase 8 BLE Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
+| Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
 
 ---
 
 ## 📋 PHASE DETAILS
+
+---
+
+### ✅ PHASE 7.3 patch 1: BARANGAY POLYGON EXPANSION (100% Complete)
+
+**Status:** ✅ COMPLETE — March 23, 2026
+
+| Task | Status |
+|------|--------|
+| Manually create polygon coordinates for 14 Poblacion wards | ✅ Done |
+| Add all new entries to `add_barangay.js` BARANGAYS object | ✅ Done |
+| Run seeding script and confirm all 16 uploads | ✅ Done |
+
+#### Seeded Barangays
+
+| Document ID | Points | Result |
+|-------------|--------|--------|
+| guiuan-lupok | 51 | Overwritten |
+| guiuan-salug | 23 | Overwritten |
+| guiuan-poblacion-ward-1 | 16 | New |
+| guiuan-poblacion-ward-2 | 8 | New |
+| guiuan-poblacion-ward-3 | 19 | New |
+| guiuan-poblacion-ward-4 | 25 | Overwritten |
+| guiuan-poblacion-ward-4a | 10 | New |
+| guiuan-poblacion-ward-5 | 25 | New |
+| guiuan-poblacion-ward-6 | 36 | New |
+| guiuan-poblacion-ward-7 | 20 | New |
+| guiuan-poblacion-ward-8 | 20 | New |
+| guiuan-poblacion-ward-9 | 12 | New |
+| guiuan-poblacion-ward-9a | 16 | New |
+| guiuan-poblacion-ward-10 | 30 | New |
+| guiuan-poblacion-ward-11 | 35 | New |
+| guiuan-poblacion-ward-12 | 19 | New |
+
+> No Flutter code changes. Data-only update via Node.js seeding script.
 
 ---
 
@@ -112,8 +149,8 @@ Single relay = spin and stop only. No direction reversal. CW/CCW requires a seco
 | Test CW spin from app (CLOSE) | Motor rotates clockwise | ⏳ Pending |
 | Test CCW spin from app (OPEN) | Motor rotates counter-clockwise | ⏳ Pending |
 | Build physical valve/cover prototype | Attach motor shaft to exhaust cover | ⏳ Pending |
-| Test 90°/180° rotation and return | Enter zone → cover closes (90° or 180°) → exit zone → cover opens | ⏳ Pending |
-| Test full geofence → motor rotation end-to-end | GPS enter zone → CLOSE sent → relay → motor rotates → cover closes | ⏳ Pending |
+| Test 90°/180° rotation and return | Enter zone → cover closes → exit zone → cover opens | ⏳ Pending |
+| Test full geofence → motor rotation end-to-end | GPS enter zone → CLOSE sent → relay → motor rotates | ⏳ Pending |
 
 #### Planned Wiring — 2 Relay H-Bridge
 
@@ -160,18 +197,20 @@ void loop() {
     received.trim();
 
     if (received.indexOf("CLOSE") >= 0) {
-      // Spin CW — close the exhaust cover
-      digitalWrite(RELAY_PIN_2, LOW);   // safety: stop opposite first
+      digitalWrite(RELAY_PIN_2, LOW);
       delay(50);
-      digitalWrite(RELAY_PIN_1, HIGH);  // CW
+      digitalWrite(RELAY_PIN_1, HIGH);
+      delay(600);  // tune this value
+      digitalWrite(RELAY_PIN_1, LOW);
       Serial.println("Motor CW — exhaust CLOSED");
       BTSerial.println("ACK:CLOSE");
 
     } else if (received.indexOf("OPEN") >= 0) {
-      // Spin CCW — open the exhaust cover
-      digitalWrite(RELAY_PIN_1, LOW);   // safety: stop opposite first
+      digitalWrite(RELAY_PIN_1, LOW);
       delay(50);
-      digitalWrite(RELAY_PIN_2, HIGH);  // CCW
+      digitalWrite(RELAY_PIN_2, HIGH);
+      delay(600);  // tune this value
+      digitalWrite(RELAY_PIN_2, LOW);
       Serial.println("Motor CCW — exhaust OPEN");
       BTSerial.println("ACK:OPEN");
 
@@ -185,9 +224,8 @@ void loop() {
 }
 ```
 
-> **Note:** The planned sketch above will need a timed stop after rotation reaches 90° or 180°.
-> A `delay()` based stop is acceptable for the prototype. Proper position sensing (limit switch
-> or encoder) can be added after the prototype is validated.
+> **Note:** `delay(600)` is a timed stop — tune based on motor speed and rotation angle needed.
+> A limit switch is the proper long-term fix (tracked in technical debt).
 
 ---
 
@@ -251,7 +289,7 @@ void loop() {
 - [x] 7.12 — `BarangayNavigationScreen` + skeleton screens ✅
 - [x] 7.13 — Barangay Home Dashboard ✅
 - [x] 7.14 — Submit Request screen ✅
-- [x] 7.15 — Barangay boundary check (GeoJSON polygon) ✅
+- [x] 7.15 — Barangay boundary check (manual polygon) ✅
 - [x] 7.16 — My Requests (3 tabs: Pending / Approved / Rejected) ✅
 - [x] 7.17 — Notifications screen + bell icon ✅
 
@@ -335,14 +373,15 @@ flutter_launcher_icons: ^0.14.1
 | 10 | Barangay Screens (core) | ✅ Done | Mar 9 |
 | 11 | End-to-end flow verified | ✅ Done | Mar 9 |
 | 12 | Notifications + UI/UX Polish (all 3 roles) | ✅ Done | Mar 15 |
-| 13 | Barangay Boundary Check + GeoJSON Seeding | ✅ Done | Mar 18 |
+| 13 | Barangay Boundary Check + Manual Polygon Seeding | ✅ Done | Mar 18 |
 | 14 | HC-05 Hardware Validated + Relay Confirmed | ✅ Done | Mar 19 |
 | 15 | Dev Tool Relocation + Rider Dashboard Production-Clean | ✅ Done | Mar 21 |
-| **16** | **DC Motor Spin Test Validated** | **✅ Done** | **Mar 21** |
-| 17 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
-| 18 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
-| 19 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
-| 20 | MVP Complete (Phase 8 Full Automation) | ⏳ Next | TBD |
+| 16 | DC Motor Spin Test Validated | ✅ Done | Mar 21 |
+| **17** | **Barangay Polygon Expansion — 16 barangays seeded** | **✅ Done** | **Mar 23** |
+| 18 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| 19 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
+| 20 | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
+| 21 | MVP Complete (Phase 8 Full Automation) | ⏳ Next | TBD |
 
 ---
 
@@ -350,17 +389,17 @@ flutter_launcher_icons: ^0.14.1
 
 | Item | Priority | Notes |
 |------|----------|-------|
+| Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
+| Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
+| Motor rotation needs timed stop | Medium | Currently no stop after 90°/180° — needs delay() or limit switch |
+| Single relay — no direction control yet | Medium | Needs second relay for CW/CCW — tracked in Phase 7.4 |
+| Breadboard wiring not yet soldered | Medium | Solder before prototype demo |
 | Debug `print()` throughout codebase | Low | Clean before final demo |
 | `withOpacity` → `withValues()` (~12 instances remaining) | Low | Batch fix before demo |
 | `activeColor` → `activeThumbColor` (1 instance) | Low | Minor deprecation |
 | `bt_classic_test_screen.dart` | Low | Keep until Phase 8 validated, then delete entirely |
 | Developer Tools section in `shared_profile_screen.dart` | Low | Remove after Phase 8 complete |
 | `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs |
-| Firestore rules too permissive | **High** | Fix in Step 7.19 before demo |
-| Step 7.4 Super Admin not seeded | Medium | Required to log in as admin |
-| Motor rotation needs timed stop | Medium | Currently no stop after 90°/180° — needs delay() or limit switch |
-| Single relay — no direction control yet | Medium | Needs second relay for CW/CCW — tracked in Phase 7.4 |
-| Breadboard wiring not yet soldered | Medium | Solder before prototype demo |
 | `barangay_profile_screen.dart` still a placeholder | Low | Uses shared profile — functional |
 | Old test zone documents missing `submitted_by_name` | Low | Only affects pre-patch documents |
 | iOS Info.plist not configured | Low | Android only for capstone |
@@ -368,4 +407,4 @@ flutter_launcher_icons: ^0.14.1
 ---
 
 **For detailed changes, see:** CHANGELOG.md
-**Last Updated:** March 21, 2026
+**Last Updated:** March 23, 2026
