@@ -1,4 +1,9 @@
 import 'package:flutter/foundation.dart';
+import '../services/classic_bluetooth_service.dart';
+import '../services/speed_service.dart';
+import '../services/firestore_service.dart';
+import '../models/ride_session.dart';
+import '../models/restricted_area.dart';
 
 /// Exhaust State enum
 enum ExhaustState {
@@ -23,6 +28,17 @@ class ExhaustProvider with ChangeNotifier {
   int _manualOverrides = 0;
   double _totalDistance = 0.0; // in kilometers
 
+  // Speed & session tracking
+  final FirestoreService _fs = FirestoreService();
+  String? _activeSessionId;
+  String? _activeZoneId;
+  String? _activeZoneName;
+  String? _activeZoneBarangayId;
+  String? _riderUid;
+  final List<RideSnapshot> _sessionSnapshots = [];
+  bool _approachSnapshotTaken = false;
+  static const double _approachRadiusBuffer = 50.0; // meters before zone edge
+
   // Getters
   ExhaustState get currentState => _currentState;
   bool get isAutoMode => _isAutoMode;
@@ -36,6 +52,12 @@ class ExhaustProvider with ChangeNotifier {
   int get autoClosures => _autoClosures;
   int get manualOverrides => _manualOverrides;
   double get totalDistance => _totalDistance;
+
+  // Speed
+  double get currentSpeedKph => SpeedService.instance.currentKph;
+
+  /// Call after login with the rider's UID
+  void setRiderUid(String uid) => _riderUid = uid;
 
   // Computed properties
   bool get isOpen => _currentState == ExhaustState.open;
@@ -99,14 +121,31 @@ class ExhaustProvider with ChangeNotifier {
     required double lng,
     String? locationName,
     bool? isRestricted,
+    RestrictedArea? nearestZone,
+    double? distanceToZone,
   }) {
     _latitude = lat;
     _longitude = lng;
     _currentLocation = locationName;
 
-    // If restriction status is provided, use it
+    // Start speed tracking on first location fix
+    SpeedService.instance.startTracking();
+
+    // Approach detection — 50m outside zone radius
+    if (!_isInRestrictedArea &&
+        !_approachSnapshotTaken &&
+        nearestZone != null &&
+        distanceToZone != null &&
+        distanceToZone <= nearestZone.radius + _approachRadiusBuffer) {
+      _approachSnapshotTaken = true;
+      _activeZoneId = nearestZone.id;
+      _activeZoneName = nearestZone.name;
+      _activeZoneBarangayId = nearestZone.barangayId;
+      _takeSnapshot(SnapshotType.approach, nearestZone.id, nearestZone.name);
+    }
+
     if (isRestricted != null) {
-      checkRestrictedAreaStatus(isRestricted);
+      checkRestrictedAreaStatus(isRestricted, zone: nearestZone);
     }
 
     notifyListeners();
@@ -114,37 +153,109 @@ class ExhaustProvider with ChangeNotifier {
 
   /// Check if current location is in a restricted area
   /// This will be called by the location service when position updates
-  void checkRestrictedAreaStatus(bool isInRestricted) {
+  void checkRestrictedAreaStatus(bool isInRestricted, {RestrictedArea? zone}) {
     final oldValue = _isInRestrictedArea;
     _isInRestrictedArea = isInRestricted;
 
-    // If restriction status changed and we're in auto mode
     if (_isInRestrictedArea != oldValue && _isAutoMode) {
       if (_isInRestrictedArea) {
+        // Zone entry
         setExhaustState(ExhaustState.closed);
         _autoClosures++;
+        ClassicBluetoothService.instance.send('CLOSE');
+        SpeedService.instance.clearBuffer();
+
+        final z = zone;
+        if (z != null) {
+          _activeZoneId = z.id;
+          _activeZoneName = z.name;
+          _activeZoneBarangayId = z.barangayId;
+        }
+        _takeSnapshot(
+          SnapshotType.entry,
+          _activeZoneId ?? '',
+          _activeZoneName ?? '',
+        );
+        _startSession();
       } else {
+        // Zone exit
+        _takeSnapshot(
+          SnapshotType.exit,
+          _activeZoneId ?? '',
+          _activeZoneName ?? '',
+        );
+        _closeSession();
         setExhaustState(ExhaustState.open);
+        ClassicBluetoothService.instance.send('OPEN');
+        _approachSnapshotTaken = false;
       }
     }
 
     notifyListeners();
   }
 
+  void _takeSnapshot(SnapshotType type, String zoneId, String zoneName) {
+    final snap = RideSnapshot(
+      type: type,
+      speedKph: SpeedService.instance.currentKph,
+      decibelDb: 0.0, // placeholder — IoT will fill this via BT
+      exhaustState: stateLabel.toLowerCase(),
+      zoneId: zoneId,
+      zoneName: zoneName,
+      timestamp: DateTime.now(),
+    );
+    _sessionSnapshots.add(snap);
+  }
+
+  Future<void> _startSession() async {
+    if (_riderUid == null) return;
+    _sessionSnapshots.clear();
+    final session = RideSession(
+      id: '',
+      riderUid: _riderUid!,
+      zoneId: _activeZoneId ?? '',
+      zoneName: _activeZoneName ?? '',
+      barangayId: _activeZoneBarangayId ?? '',
+      startedAt: DateTime.now(),
+    );
+    _activeSessionId = await _fs.createRideSession(session);
+  }
+
+  Future<void> _closeSession() async {
+    final sid = _activeSessionId;
+    if (sid == null) return;
+
+    final approach = _sessionSnapshots
+        .where((s) => s.type == SnapshotType.approach)
+        .firstOrNull;
+    final exit = _sessionSnapshots
+        .where((s) => s.type == SnapshotType.exit)
+        .firstOrNull;
+
+    await _fs.closeRideSession(
+      sessionId: sid,
+      avgSpeedKph: SpeedService.instance.averageKph,
+      decibelBefore: approach?.decibelDb ?? 0.0,
+      decibelAfter: exit?.decibelDb ?? 0.0,
+      snapshots: _sessionSnapshots.map((s) => s.toMap()).toList(),
+    );
+    _activeSessionId = null;
+    _sessionSnapshots.clear();
+    SpeedService.instance.stopTracking();
+  }
+
   /// Manually open exhaust (override)
   void openExhaust() {
-    if (_isAutoMode) {
-      setAutoMode(false); // Disable auto mode when manual override
-    }
+    if (_isAutoMode) setAutoMode(false);
     setExhaustState(ExhaustState.open);
+    ClassicBluetoothService.instance.send('OPEN');
   }
 
   /// Manually close exhaust (override)
   void closeExhaust() {
-    if (_isAutoMode) {
-      setAutoMode(false); // Disable auto mode when manual override
-    }
+    if (_isAutoMode) setAutoMode(false);
     setExhaustState(ExhaustState.closed);
+    ClassicBluetoothService.instance.send('CLOSE');
   }
 
   /// Start a new trip

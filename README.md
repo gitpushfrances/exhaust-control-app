@@ -2,7 +2,7 @@
 
 **Automatic Motorcycle Exhaust Noise Control System**
 
-A Flutter mobile application for controlling motorcycle exhaust valves via Bluetooth, with GPS-based automation to automatically close exhausts in restricted noise zones. Features a full 3-role system — Super Admin, Barangay Official, and Rider.
+A Flutter mobile application for controlling motorcycle exhaust valves via Bluetooth, with GPS-based automation to automatically close exhausts in restricted noise zones. Features a full 3-role system — Super Admin, Barangay Official, and Rider — with speed tracking, ride session logging, and decibel reduction reporting.
 
 ---
 
@@ -17,26 +17,31 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - 📊 **Admin Dashboard:** Live stats, zone management, official management, global map
 - 👤 **User Accounts:** Firebase Auth with role-based routing — role read from Firestore on login
 - 🏘️ **Barangay Geofencing:** Officials can only submit zones inside their assigned barangay — enforced via manually created polygon boundaries (currently 16 barangays in Guiuan, Eastern Samar)
-- 🔧 **Dev Tools:** HC-05 hardware test screen accessible exclusively to Super Admin via profile settings
+- 🚀 **Speed Tracking:** GPS speed captured every second with position-diff fallback — averaged per zone pass
+- 📋 **Ride Session Logging:** 3-snapshot logging per zone pass (approach, entry, exit) stored in Firestore `ride_sessions` collection
+- 📉 **Decibel Reduction Reporting:** dB before/after/reduced per session — placeholder until IoT sensor hardware arrives
+- 🔧 **Dev Tools:** HC-05 hardware test + live Speed Monitor — accessible exclusively to Super Admin via profile settings
 
 ---
 
-## 🎯 Current Status: ~93% Complete
+## 🎯 Current Status: ~95% Complete
 
 ```
-[███████████████████████████████░] 93%
+[█████████████████████████████████░] 95%
 ```
 
 | Scope | Progress | Notes |
 |-------|----------|-------|
 | Rider functionality | ~99% | All screens done, dashboard clean ✅ |
 | Super Admin screens | 100% | Dashboard, Inbox, Officials, Map, Dev Tools ✅ |
-| Barangay Official screens | ~98% | All screens live, notifications, boundary check ✅ |
+| Barangay Official screens | ~99% | All screens live + Logs tab ✅ |
 | Notification system | 100% | In-app notifications fully wired ✅ |
 | UI/UX Polish | 100% | All 3 roles complete ✅ |
+| Speed Tracking & Ride Logging | 100% | SpeedService, RideSession, Logs tab, Speed Monitor ✅ |
 | HC-05 Hardware Validation | 100% | Two-way comms + relay confirmed ✅ |
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
-| Barangay Polygon Seeding | 100% | 16 barangays seeded — more to be added ✅ |
+| Barangay Polygon Seeding | 100% | 16 barangays seeded ✅ |
+| IoT Decibel Integration | 0% | Hardware pending — dB fields are 0.0 placeholders |
 | Hardware Prototype (CW/CCW) | 0% | Needs second relay + soldering |
 | Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire |
 
@@ -62,7 +67,8 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] Request Inbox — pending requests, approve/reject with reason
 - [x] Manage Officials — multi-barangay (max 3), assign/remove barangays, detail screen
 - [x] Global Map — all zones, filter chips, pin markers, legend
-- [x] Profile — Developer Tools section (HC-05 test — superadmin only)
+- [x] Profile → Developer Tools → HC-05 Hardware Test (superadmin only)
+- [x] Profile → Developer Tools → Speed Monitor — live GPS speed, fallback tag, 20-reading log
 
 **Barangay Official Role:**
 - [x] Dashboard — 4 live stat cards, recent requests
@@ -71,6 +77,15 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] Out-of-bounds modal — `barrierDismissible: false`, "I Understand" CTA
 - [x] My Requests — 3-tab (Pending / Approved / Rejected), withdraw, resubmit
 - [x] Notifications — multi-select, swipe-to-delete, smart timestamps, mark all read
+- [x] **Ride Logs tab** — sessions list with avg speed, dB before/after/reduced, per-snapshot breakdown (approach / entry / exit)
+
+**Speed Tracking & Logging:**
+- [x] `SpeedService` — GPS speed every second (`m/s → km/h`), position-diff fallback, rolling buffer
+- [x] `RideSnapshot` — point-in-time reading at approach/entry/exit with speed + dB + exhaust state
+- [x] `RideSession` — groups snapshots, stores avg speed + dB reduction in Firestore
+- [x] Approach detection — fires snapshot 50m before zone edge
+- [x] Session lifecycle — created on zone entry, closed on zone exit with calculated averages
+- [x] Decibel fields — `0.0` placeholder; single line swap when IoT hardware arrives
 
 **Hardware (Validated):**
 - [x] HC-05 permanently configured at 9600 baud via AT commands
@@ -81,7 +96,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] Dedicated 9V battery for motor, shared ground with Arduino confirmed
 
 **Barangay Data:**
-- [x] 16 barangays seeded in Guiuan, Eastern Samar (Lupok, Salug, Poblacion Wards 1–12 including 4-A and 9-A)
+- [x] 16 barangays seeded in Guiuan, Eastern Samar
 - [x] All polygon boundaries manually created — no third-party GeoJSON dependency
 - [x] Seeding script (`add_barangay.js`) supports incremental additions
 
@@ -91,8 +106,8 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 
 - [ ] Firestore security rules tightening — Step 7.19, HIGH RISK, do last before demo
 - [ ] Seed Super Admin in Firestore console — Step 7.4, manual 5 min
+- [ ] IoT decibel sensor integration — hardware not arrived; update `decibelDb: 0.0` in `_takeSnapshot()` when ready
 - [ ] Logo integration — asset pending
-- [ ] Additional barangays to be added to seeding script as needed
 
 ---
 
@@ -124,267 +139,63 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | Package | Version | Purpose |
 |---------|---------|---------|
 | `firebase_core` | ^4.4.0 | Firebase initialization |
-| `firebase_auth` | ^6.1.4 | User authentication — login, signup, session |
-| `cloud_firestore` | ^6.1.2 | Database — users, zones, notifications, barangays |
+| `firebase_auth` | ^6.1.4 | User authentication |
+| `cloud_firestore` | ^6.1.2 | Database — users, zones, notifications, barangays, ride_sessions |
 | `provider` | ^6.1.5+1 | State management across all 3 roles |
-| `shared_preferences` | ^2.5.4 | Local storage — persist small values across sessions |
+| `shared_preferences` | ^2.5.4 | Local storage |
 
 #### Hardware & Connectivity
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `flutter_blue_plus` | 1.31.15 | BLE scanning and connection (existing, kept for compatibility) |
-| `flutter_bluetooth_serial` | ^0.4.0 | **HC-05 Classic Bluetooth** — paired device list, connect, send/receive serial data. Requires manual `build.gradle` patch for AGP compatibility (namespace + compileSdkVersion 34 + mavenCentral) |
-| `geolocator` | ^14.0.2 | GPS position stream, background location, permission handling |
+| `flutter_blue_plus` | 1.31.15 | BLE scanning and connection (kept for compatibility) |
+| `flutter_bluetooth_serial` | ^0.4.0 | HC-05 Classic Bluetooth — paired device list, connect, send/receive |
+| `geolocator` | ^14.0.2 | GPS position stream, speed (`m/s`), background location |
 | `permission_handler` | ^12.0.1 | Runtime permissions — Bluetooth, location, Android 12+ |
-| `device_info_plus` | ^10.1.0 | Android SDK version detection — used for conditional permission logic |
+| `device_info_plus` | ^10.1.0 | Android SDK version detection |
 
 #### Map & Location
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `flutter_map` | ^8.2.2 | **OpenStreetMap** tiles rendered in Flutter — zone circles, polygon overlays, markers, GPS dot layer |
-| `latlong2` | ^0.9.1 | `LatLng` coordinate class used by `flutter_map` |
-| `geocoding` | ^4.0.0 | Reverse geocoding — converts GPS coordinates to human-readable address |
+| `flutter_map` | ^8.2.2 | OpenStreetMap tiles — zone circles, polygon overlays, GPS dot |
+| `latlong2` | ^0.9.1 | `LatLng` coordinate class |
+| `geocoding` | ^4.0.0 | Reverse geocoding — GPS → human-readable address |
 
 #### UI & Icons
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `font_awesome_flutter` | ^10.7.0 | **Font Awesome icons** — used across all 3 role screens for action rows, stat cards, nav items |
-| `awesome_dialog` | ^3.2.1 | Styled modal dialogs — confirmations, alerts, success/error feedback |
-| `flutter_svg` | ^2.0.10 | SVG asset rendering — logo, custom graphics |
-| `lottie` | ^3.1.2 | Lottie animation files — used for loading states and visual feedback |
+| `font_awesome_flutter` | ^10.7.0 | Font Awesome icons |
+| `awesome_dialog` | ^3.2.1 | Styled modal dialogs |
+| `flutter_svg` | ^2.0.10 | SVG asset rendering |
+| `lottie` | ^3.1.2 | Lottie animation files |
 
 #### Dev & Build
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `flutter_launcher_icons` | ^0.14.1 | Generates Android/iOS launcher icons from a single source asset |
+| `flutter_launcher_icons` | ^0.14.1 | Generates launcher icons |
 
 ---
 
-### Arduino / Hardware Stack
+## 🗄️ Firestore Collections
 
-#### Microcontroller
-| Component | Detail |
-|-----------|--------|
-| **Arduino Uno** | Main controller — runs the sketch, receives BT commands, controls relay |
-| **IDE** | Arduino IDE — used to write and upload sketches via USB |
-| **Language** | C++ (Arduino dialect) |
-| **Library used** | `SoftwareSerial.h` — built-in Arduino library, enables serial communication on digital pins 6 and 7 instead of the hardware Serial pins |
+| Collection | Purpose |
+|---|---|
+| `users` | All accounts — role, name, email, barangay assignment, isActive |
+| `restricted_areas` | Zone requests — status, polygon, radius, submitted_by |
+| `barangays` | Polygon boundaries — 16 barangays seeded |
+| `notifications` | In-app notification docs per official |
+| `ride_sessions` | Speed + dB logs per zone pass — approach/entry/exit snapshots + averages |
 
-#### Bluetooth Module
-| Component | Detail |
-|-----------|--------|
-| **HC-05** | Classic Bluetooth (not BLE) — paired to phone like a headset, communicates over serial |
-| **Baud rate** | 9600 — permanently set via AT command (`AT+UART=9600,0,0`) |
-| **Wiring** | VCC → 5V, GND → GND, TX → Pin 6 (SoftwareSerial RX), RX → Pin 7 (SoftwareSerial TX) |
-| **AT mode** | Entered by holding button on HC-05 during power-on — used once to set baud rate |
+### Firestore Composite Indexes Required
 
-#### Relay Module
-| Component | Detail |
-|-----------|--------|
-| **5V single-channel relay** | Acts as the electrical switch between the 9V battery and the DC motor |
-| **Signal pin** | S → Arduino Pin 8 |
-| **Power** | + → Arduino 5V, – → Arduino GND |
-| **Screw terminals used** | COM (power in from battery +) and NO (power out to motor Wire A) |
-| **NC terminal** | Not connected — left empty |
-| **Behavior** | Pin 8 HIGH = relay energizes = NO closes = motor gets power. Pin 8 LOW = relay off = motor loses power |
-
-#### Motor & Power
-| Component | Detail |
-|-----------|--------|
-| **DC Motor** | Salvaged from Epson printer — generic brushed DC motor |
-| **Power supply** | Dedicated 9V battery — completely separate from Arduino power |
-| **9V battery (+)** | Small circle terminal → Relay COM |
-| **9V battery (–)** | Large octagon terminal → Motor Wire B AND Arduino GND (shared ground) |
-| **Motor Wire A** | Relay NO |
-| **Motor Wire B** | 9V battery (–) |
-| **Current direction** | With 1 relay: spin only (one direction). CW/CCW requires second relay — pending Phase 7.4 |
-
-#### Planned — Second Relay (Phase 7.4)
-| Component | Detail |
-|-----------|--------|
-| **Second 5V relay** | Same type as current relay |
-| **Signal pin** | S → Arduino Pin 9 |
-| **Purpose** | H-bridge config — Relay 1 + Relay 2 swap motor polarity for CW/CCW |
-| **Rule** | Never set both relays HIGH simultaneously — short circuit |
-
----
-
-### External Services & APIs
-
-| Service | Purpose |
-|---------|---------|
-| **Firebase Auth** | User authentication, session management |
-| **Cloud Firestore** | All app data — users, zones, barangays, notifications |
-| **OpenStreetMap (OSM)** | Free map tiles served via `flutter_map` — no API key required |
-| **Firebase Cloud Messaging (FCM)** | Push notifications — optional, planned for Phase 7.20 |
-
----
-
-### Seeding & Dev Tools
-
-| Tool | Purpose |
-|------|---------|
-| **Node.js v18+** | Runs the barangay seeding script |
-| **firebase-admin (npm)** | Node.js Firebase Admin SDK — used to write barangay documents to Firestore |
-| **add_barangay.js** | Custom seeding script — polygon coordinates manually defined per barangay, supports incremental additions |
-| **Firestore console** | Manual Super Admin seed — one-time setup, no script |
-
----
-
-## 🔌 Full Wiring Reference
-
-### Current Hardware State (v0.7.3)
-
-**HC-05 to Arduino:**
-| HC-05 Pin | Arduino Pin |
-|-----------|-------------|
-| VCC | 5V |
-| GND | GND |
-| TX | Pin 6 (SoftwareSerial RX) |
-| RX | Pin 7 (SoftwareSerial TX) |
-
-**Relay to Arduino:**
-| Relay Pin | Arduino Pin |
-|-----------|-------------|
-| S | Pin 8 |
-| + | 5V |
-| – | GND |
-
-**Relay screw terminals + 9V battery + DC motor:**
-| From | To | Notes |
-|------|----|-------|
-| 9V battery (+) small circle | Relay COM | Power in |
-| Relay NO | DC Motor Wire A | Power out when relay ON |
-| 9V battery (–) large octagon | DC Motor Wire B | Return path |
-| 9V battery (–) large octagon | Arduino GND | Shared ground — critical |
-
-### Planned — Phase 7.4 (2 Relay H-Bridge)
-
-| From | To | Notes |
-|------|----|-------|
-| Arduino Pin 8 | Relay 1 S | CW direction |
-| Arduino Pin 9 | Relay 2 S | CCW direction |
-| 9V battery (+) | Relay 1 COM | |
-| 9V battery (+) | Relay 2 COM | |
-| Relay 1 NO | Motor Wire A | |
-| Relay 2 NO | Motor Wire B | |
-| 9V battery (–) | Motor Wire B (return) | |
-| 9V battery (–) | Arduino GND | Shared ground |
-
----
-
-## 🧪 Arduino Sketch — Current (v0.7.3)
-
-```cpp
-#include <SoftwareSerial.h>
-
-SoftwareSerial BTSerial(6, 7); // RX=6, TX=7
-
-const int RELAY_PIN = 8;
-
-void setup() {
-  Serial.begin(9600);
-  BTSerial.begin(9600);
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
-  Serial.println("Ready. Waiting for BT data...");
-}
-
-void loop() {
-  static unsigned long lastHeartbeat = 0;
-  if (millis() - lastHeartbeat > 2000) {
-    Serial.println("Waiting...");
-    lastHeartbeat = millis();
-  }
-
-  if (BTSerial.available()) {
-    String received = "";
-    while (BTSerial.available()) {
-      received += (char)BTSerial.read();
-      delay(2);
-    }
-    received.trim();
-
-    if (received.length() > 0) {
-      Serial.print("Received: [");
-      Serial.print(received);
-      Serial.print("] length: ");
-      Serial.println(received.length());
-
-      if (received.indexOf("OPEN") >= 0) {
-        digitalWrite(RELAY_PIN, LOW);
-        Serial.println("Relay OFF — exhaust OPEN");
-        BTSerial.println("ACK:OPEN");
-      } else if (received.indexOf("CLOSE") >= 0) {
-        digitalWrite(RELAY_PIN, HIGH);
-        Serial.println("Relay ON — exhaust CLOSED");
-        BTSerial.println("ACK:CLOSE");
-      } else {
-        BTSerial.println("ACK:" + received);
-      }
-    }
-  }
-}
-```
-
-### Planned Sketch — Phase 7.4 (CW/CCW with 2 relays)
-
-```cpp
-#include <SoftwareSerial.h>
-
-SoftwareSerial BTSerial(6, 7);
-
-const int RELAY_PIN_1 = 8;  // CW — exhaust CLOSE
-const int RELAY_PIN_2 = 9;  // CCW — exhaust OPEN
-
-void setup() {
-  Serial.begin(9600);
-  BTSerial.begin(9600);
-  pinMode(RELAY_PIN_1, OUTPUT);
-  pinMode(RELAY_PIN_2, OUTPUT);
-  digitalWrite(RELAY_PIN_1, LOW);
-  digitalWrite(RELAY_PIN_2, LOW);
-  Serial.println("Ready.");
-}
-
-void loop() {
-  if (BTSerial.available()) {
-    String received = "";
-    while (BTSerial.available()) {
-      received += (char)BTSerial.read();
-      delay(2);
-    }
-    received.trim();
-
-    if (received.indexOf("CLOSE") >= 0) {
-      digitalWrite(RELAY_PIN_2, LOW);
-      delay(50);
-      digitalWrite(RELAY_PIN_1, HIGH);
-      delay(600);                       // tune for your motor speed
-      digitalWrite(RELAY_PIN_1, LOW);
-      Serial.println("Motor CW — exhaust CLOSED");
-      BTSerial.println("ACK:CLOSE");
-
-    } else if (received.indexOf("OPEN") >= 0) {
-      digitalWrite(RELAY_PIN_1, LOW);
-      delay(50);
-      digitalWrite(RELAY_PIN_2, HIGH);
-      delay(600);                       // tune for your motor speed
-      digitalWrite(RELAY_PIN_2, LOW);
-      Serial.println("Motor CCW — exhaust OPEN");
-      BTSerial.println("ACK:OPEN");
-
-    } else if (received.indexOf("STOP") >= 0) {
-      digitalWrite(RELAY_PIN_1, LOW);
-      digitalWrite(RELAY_PIN_2, LOW);
-      Serial.println("Motor STOPPED");
-      BTSerial.println("ACK:STOP");
-    }
-  }
-}
-```
-
-> **Note on `delay(600)`:** Timed stop — tune based on actual motor speed and rotation angle needed. A limit switch is the proper long-term fix — flagged in technical debt.
+| Collection | Field 1 | Field 2 | Order |
+|---|---|---|---|
+| `restricted_areas` | `submitted_by_uid` ASC | `created_at` DESC | Collection |
+| `restricted_areas` | `status` ASC | `created_at` DESC | Collection |
+| `restricted_areas` | `status` ASC | `approved_at` DESC | Collection |
+| `notifications` | `uid` ASC | `created_at` DESC | Collection |
+| `notifications` | `uid` ASC | `is_read` ASC | Collection |
+| `ride_sessions` | `barangay_id` ASC | `started_at` DESC | Collection |
+| `ride_sessions` | `rider_uid` ASC | `started_at` DESC | Collection |
 
 ---
 
@@ -432,21 +243,12 @@ Edit build.gradle:
 
 **5. Create Firestore composite indexes**
 
-| Collection | Field 1 | Field 2 | Order |
-|---|---|---|---|
-| `restricted_areas` | `submitted_by_uid` ASC | `created_at` DESC | Collection |
-| `restricted_areas` | `status` ASC | `created_at` DESC | Collection |
-| `restricted_areas` | `status` ASC | `approved_at` DESC | Collection |
-| `notifications` | `uid` ASC | `created_at` DESC | Collection |
-| `notifications` | `uid` ASC | `is_read` ASC | Collection |
+See table in Firestore Collections section above — 7 indexes total.
 
 **6. Seed `/barangays` collection (one-time)**
 ```bash
 npm install firebase-admin
 node add_barangay.js
-# Uploads all barangays defined in the BARANGAYS object
-# Currently: 16 barangays in Guiuan, Eastern Samar
-# Safe to re-run — overwrites existing documents
 ```
 
 **7. Seed Super Admin in Firestore console (one-time, manual)**
@@ -463,11 +265,7 @@ Fields:
 
 **8. Upload Arduino sketch**
 ```
-Open Arduino IDE
-Open sketch from /arduino/exhaust_controller.ino
-Select board: Arduino Uno
-Select correct COM port
-Upload
+Open Arduino IDE → open sketch → select Arduino Uno → upload
 ```
 
 **9. Run the app**
@@ -483,28 +281,31 @@ flutter run
 lib/
 ├── main.dart
 ├── models/
-│   ├── app_user.dart                          # uid, name, email, role, barangayIds, isActive
-│   └── restricted_area.dart                   # GPS zone model with status + Haversine
+│   ├── app_user.dart
+│   ├── restricted_area.dart
+│   └── ride_session.dart                              ✅ NEW — RideSnapshot + RideSession
 ├── providers/
 │   ├── auth_provider.dart
-│   ├── bluetooth_provider.dart                # BLE scanning + connection
-│   ├── exhaust_provider.dart                  # Exhaust state + live location + geofence
+│   ├── bluetooth_provider.dart
+│   ├── exhaust_provider.dart                          ✅ UPDATED — speed + snapshot wiring
 │   └── restricted_areas_provider.dart
 ├── services/
 │   ├── auth_service.dart
-│   └── firestore_service.dart                 # All Firestore reads/writes, 3 roles
+│   ├── firestore_service.dart                         ✅ UPDATED — ride session CRUD
+│   └── speed_service.dart                             ✅ NEW — GPS speed + fallback
 ├── screens/
 │   ├── login_screen.dart
 │   ├── signup_screen.dart
 │   ├── splash_screen.dart
 │   ├── test/
-│   │   └── bt_classic_test_screen.dart        # HC-05 dev test — Super Admin only
+│   │   ├── bt_classic_test_screen.dart               HC-05 dev test — Super Admin only
+│   │   └── speed_monitor_screen.dart                 ✅ NEW — live speed monitor
 │   ├── shared/
-│   │   └── shared_profile_screen.dart         # Shared profile + Dev Tools (superadmin)
+│   │   └── shared_profile_screen.dart                ✅ UPDATED — Speed Monitor in Dev Tools
 │   ├── rider/
 │   │   ├── main_navigation_screen.dart
-│   │   ├── dashboard_screen.dart              # BT + exhaust status (production-clean)
-│   │   ├── map_screen.dart
+│   │   ├── dashboard_screen.dart
+│   │   ├── map_screen.dart                           ✅ UPDATED — SpeedService + zone distance
 │   │   └── profile_screen.dart
 │   ├── admin/
 │   │   ├── admin_navigation_screen.dart
@@ -515,17 +316,18 @@ lib/
 │   │   ├── admin_create_official_screen.dart
 │   │   └── admin_global_map_screen.dart
 │   └── barangay/
-│       ├── barangay_navigation_screen.dart
+│       ├── barangay_navigation_screen.dart            ✅ UPDATED — Logs tab added
 │       ├── barangay_home_screen.dart
 │       ├── barangay_submit_request_screen.dart
 │       ├── barangay_my_requests_screen.dart
 │       ├── barangay_notifications_screen.dart
+│       ├── barangay_ride_logs_screen.dart             ✅ NEW — ride session logs viewer
 │       └── barangay_profile_screen.dart
 ├── utils/
 │   ├── app_colors.dart
 │   ├── app_text_styles.dart
 │   ├── permission_handler.dart
-│   └── geo_utils.dart                         # isPointInPolygon + firestorePolygonToLatLng
+│   └── geo_utils.dart
 └── widgets/
     ├── bluetooth_connection_modal.dart
     ├── custom_button.dart
@@ -538,46 +340,119 @@ lib/
 
 | Feature | Super Admin | Barangay Official | Rider |
 |---------|-------------|-------------------|-------|
-| View approved zones | ✅ All barangays | ✅ Own barangay only | ✅ All barangays |
+| View approved zones | ✅ All | ✅ Own barangay | ✅ All |
 | Submit zone request | ✅ Direct approve | ✅ Pending approval | ❌ |
 | Barangay boundary enforcement | ❌ | ✅ Polygon check | ❌ |
 | Approve / Reject requests | ✅ | ❌ | ❌ |
 | Manage officials | ✅ | ❌ | ❌ |
 | Receive notifications | ❌ | ✅ | ❌ |
+| View ride logs | ❌ | ✅ Own barangay | ❌ |
 | Bluetooth + exhaust control | ❌ | ❌ | ✅ |
 | GPS auto-close on zone entry | ❌ | ❌ | ✅ |
-| HC-05 Developer Tools | ✅ | ❌ | ❌ |
+| Speed tracked per zone pass | ❌ | views only | ✅ generates |
+| HC-05 Dev Test + Speed Monitor | ✅ | ❌ | ❌ |
 
 ---
 
-## 🔐 Android Permissions Required
+## 🚀 Speed Tracking Architecture
 
-```xml
-android.permission.BLUETOOTH
-android.permission.BLUETOOTH_ADMIN
-android.permission.BLUETOOTH_SCAN
-android.permission.BLUETOOTH_CONNECT
-android.permission.ACCESS_FINE_LOCATION
-android.permission.ACCESS_COARSE_LOCATION
-android.permission.INTERNET
+```
+Rider enters zone area
+        ↓
+[50m buffer] → Approach snapshot (speed + dB + exhaust state)
+        ↓
+[Zone entry] → Entry snapshot + Firestore ride_sessions doc created
+        ↓
+[Every 1 sec] → SpeedService ticks (GPS speed or position-diff fallback)
+        ↓
+[Zone exit] → Exit snapshot + session closed (avg speed + dB reduction calculated)
+        ↓
+Barangay Official Logs tab → streams ride_sessions for their barangay
+```
+
+**IoT Decibel Integration (pending hardware):**
+When the noise sensor arrives and sends readings via BT to Arduino → Flutter, update this single line in `exhaust_provider.dart`:
+```dart
+// _takeSnapshot() method:
+decibelDb: 0.0,  // ← replace with live BT reading
 ```
 
 ---
 
-## 🏘️ Barangay Geofencing System
+## 🔌 Full Wiring Reference
 
-1. Admin assigns `barangay_id` to official on account creation — `official_uid` written back to barangay document
-2. Official opens Submit Request — app fetches barangay polygon from `/barangays/{barangay_id}`
-3. Polygon drawn on map — blue dashed overlay, dark mask outside boundary
-4. On every pin drop — `isPointInPolygon()` ray casting runs
-5. Outside boundary — blocked with modal (`barrierDismissible: false`, must tap "I Understand")
-6. Inside boundary — submission proceeds
+### Current Hardware State (v0.7.3)
 
-**Polygon data:** Manually created per barangay — no third-party GeoJSON dependency
-**Current coverage:** 16 barangays in Guiuan, Eastern Samar
-- Lupok, Salug
-- Poblacion Wards 1, 2, 3, 4, 4-A, 5, 6, 7, 8, 9, 9-A, 10, 11, 12
-**Seeding script:** `add_barangay.js` — add new entries to `BARANGAYS` object and re-run to expand
+**HC-05 to Arduino:**
+| HC-05 Pin | Arduino Pin |
+|-----------|-------------|
+| VCC | 5V |
+| GND | GND |
+| TX | Pin 6 (SoftwareSerial RX) |
+| RX | Pin 7 (SoftwareSerial TX) |
+
+**Relay to Arduino:**
+| Relay Pin | Arduino Pin |
+|-----------|-------------|
+| S | Pin 8 |
+| + | 5V |
+| – | GND |
+
+**Relay screw terminals + 9V battery + DC motor:**
+| From | To |
+|------|----|
+| 9V battery (+) small circle | Relay COM |
+| Relay NO | DC Motor Wire A |
+| 9V battery (–) large octagon | DC Motor Wire B |
+| 9V battery (–) large octagon | Arduino GND |
+
+### Planned — Phase 7.4 (2 Relay H-Bridge)
+
+| From | To | Notes |
+|------|----|-------|
+| Arduino Pin 8 | Relay 1 S | CW — exhaust CLOSE |
+| Arduino Pin 9 | Relay 2 S | CCW — exhaust OPEN |
+| 9V battery (+) | Relay 1 COM + Relay 2 COM | |
+| Relay 1 NO | Motor Wire A | |
+| Relay 2 NO | Motor Wire B | |
+| 9V battery (–) | Motor Wire B (return) + Arduino GND | |
+
+> ⚠️ **Never set both relays HIGH simultaneously — short circuit.**
+
+---
+
+## 🧪 Arduino Sketch — Current (v0.7.3)
+
+```cpp
+#include <SoftwareSerial.h>
+SoftwareSerial BTSerial(6, 7);
+const int RELAY_PIN = 8;
+
+void setup() {
+  Serial.begin(9600);
+  BTSerial.begin(9600);
+  pinMode(RELAY_PIN, OUTPUT);
+  digitalWrite(RELAY_PIN, LOW);
+}
+
+void loop() {
+  if (BTSerial.available()) {
+    String received = "";
+    while (BTSerial.available()) {
+      received += (char)BTSerial.read();
+      delay(2);
+    }
+    received.trim();
+    if (received.indexOf("OPEN") >= 0) {
+      digitalWrite(RELAY_PIN, LOW);
+      BTSerial.println("ACK:OPEN");
+    } else if (received.indexOf("CLOSE") >= 0) {
+      digitalWrite(RELAY_PIN, HIGH);
+      BTSerial.println("ACK:CLOSE");
+    }
+  }
+}
+```
 
 ---
 
@@ -587,14 +462,14 @@ android.permission.INTERNET
 |------|----------|-------|
 | Firestore rules too permissive | **High** | Fix Step 7.19 before demo |
 | Super Admin not seeded | Medium | Required to log in as admin |
-| Motor rotation timed stop | Medium | `delay()` based — fragile, needs limit switch |
-| Second relay for CW/CCW | Medium | Single relay = spin/stop only, Phase 7.4 |
+| IoT decibel sensor not integrated | Medium | One line to update when hardware arrives |
+| Motor rotation timed stop | Medium | `delay()` based — needs limit switch |
+| Second relay for CW/CCW | Medium | Single relay = spin/stop only |
 | Breadboard wiring not soldered | Medium | Solder before prototype demo |
 | Debug `print()` throughout codebase | Low | Clean before final demo |
 | `withOpacity` → `withValues()` (~12 instances) | Low | Batch fix before demo |
 | `bt_classic_test_screen.dart` | Low | Delete after Phase 8 validated |
 | Developer Tools section in profile | Low | Remove after Phase 8 complete |
-| `flutter_bluetooth_serial` build.gradle patch | Low | Document for fresh installs |
 | Logo integration | Low | Asset pending |
 | iOS Info.plist not configured | Low | Android only for capstone |
 
@@ -604,24 +479,12 @@ android.permission.INTERNET
 
 | Version | Phase | Status | Date |
 |---------|-------|--------|------|
-| 0.0.1 | Foundation | ✅ Done | Before Feb 11 |
-| 0.1.0 | UI/UX Foundation | 🔄 80% | Feb 11 |
-| 0.2.0 | Navigation | ✅ Done | Feb 11 |
-| 0.3.0 | Permissions | ✅ Done | Feb 11 |
-| 0.4.0 | Bluetooth (BLE) | ✅ Done | Feb 17 |
-| 0.5.0 | GPS | ✅ Done | Feb 17 |
-| 0.6.0 | Map Integration | ✅ Done | Feb 17 |
-| 0.6.1 | Patches + Background GPS | ✅ Done | Mar 5 |
-| 0.7.0 p1 | Multi-Role Foundation + Admin/Barangay Screens | ✅ Done | Mar 9 |
-| 0.7.0 p2 | Notifications + UI/UX Polish | ✅ Done | Mar 15 |
-| 0.7.0 p3 | Barangay Geofencing + Manual Polygon Seeding | ✅ Done | Mar 18 |
-| 0.7.1 | HC-05 Hardware Validation + Relay Confirmed | ✅ Done | Mar 19 |
-| 0.7.2 | Dev Tool Relocation + Dashboard Cleanup | ✅ Done | Mar 21 |
-| 0.7.3 | DC Motor Spin Test Validated | ✅ Done | Mar 21 |
-| **0.7.3 p1** | **Barangay Polygon Expansion — 16 barangays seeded** | **✅ Done** | **Mar 23** |
-| 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| 0.7.3 patch 1 | Barangay Polygon Expansion | ✅ Done | Mar 23, 2026 |
+| **0.7.4 patch 1** | **Speed Tracking + Ride Logging + Speed Monitor** | **✅ Done** | **May 10, 2026** |
+| 0.7.4 | Second Relay + Solder + CW/CCW | 🟡 Next (hardware) | TBD |
 | 0.7.5 | Physical Valve Prototype + Rotation Test | ⏳ Next | TBD |
-| 0.7.x | Security Rules + Super Admin Seed | 🔄 Next | Mar 2026 |
+| 0.7.x | IoT Decibel Sensor Integration | ⏳ Pending hardware | TBD |
+| 0.7.x | Security Rules + Super Admin Seed | 🔄 Next | TBD |
 | 0.8.0 | Full HC-05 Automation (geofence → relay → motor) | ⏳ Unblocked | TBD |
 
 ---
@@ -629,26 +492,26 @@ android.permission.INTERNET
 ## 🧪 Testing
 
 **Tested on:** Infinix X6833B (Android 13)
+**GPS Mock Testing:** Lockito (simulates GPS routes through barangay zones)
 
 ### ✅ Passing
 - Login/signup + role routing (all 3 roles)
 - Full submit → approve → rider map flow end-to-end
 - Notification delivery, multi-select, swipe-delete, unread badge
-- Reverse geocoding on admin dashboard
-- GPS dot on all 3 maps
-- BLE scanning and connection
 - Restricted area detection (Haversine)
 - Barangay polygon — dark overlay, pin drop blocking, out-of-bounds modal
 - HC-05 two-way communication — OPEN/CLOSE/HELLO confirmed
 - Relay actuation — clicks on CLOSE, releases on OPEN
-- DC motor spin — spins on CLOSE, stops on OPEN, 9V battery dedicated power
-- HC-05 test screen — accessible via Super Admin only, not visible to other roles
-- Barangay polygon seeding — 16 barangays uploaded successfully via `add_barangay.js`
+- DC motor spin — spins on CLOSE, stops on OPEN
+- Barangay polygon seeding — 16 barangays uploaded
+- Speed Monitor — live speed display, GPS vs fallback tag
+- Ride session logging — sessions created/closed in Firestore on zone entry/exit
 
 ### ⏳ Pending
 - CW/CCW motor direction (needs second relay)
 - Physical valve prototype rotation test
 - Geofence → motor rotation end-to-end
+- IoT decibel sensor readings
 - Firestore security rules
 - iOS support
 
@@ -667,12 +530,6 @@ Created for educational purposes as part of a capstone project.
 
 ---
 
-## 👨‍💻 Author
-
-Development Team — Capstone Project 2026
-
----
-
-**Last Updated:** March 23, 2026
-**Version:** 0.7.3 patch 1
+**Last Updated:** May 10, 2026
+**Version:** 0.7.4 patch 1
 **Status:** Active Development — Phase 7.4 hardware next, Phase 8 unblocked

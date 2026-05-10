@@ -7,6 +7,7 @@ import 'barangay_submit_request_screen.dart';
 import 'barangay_my_requests_screen.dart';
 import 'barangay_notifications_screen.dart';
 import 'barangay_profile_screen.dart';
+import 'barangay_ride_logs_screen.dart';
 
 class BarangayNavigationScreen extends StatefulWidget {
   const BarangayNavigationScreen({super.key});
@@ -41,6 +42,11 @@ class _BarangayNavigationScreenState extends State<BarangayNavigationScreen> {
       label: 'Alerts',
     ),
     _NavItem(
+      icon: Icons.bar_chart_outlined,
+      activeIcon: Icons.bar_chart_rounded,
+      label: 'Logs',
+    ),
+    _NavItem(
       icon: Icons.person_outline_rounded,
       activeIcon: Icons.person_rounded,
       label: 'Profile',
@@ -57,6 +63,7 @@ class _BarangayNavigationScreenState extends State<BarangayNavigationScreen> {
       const BarangaySubmitRequestScreen(),
       const BarangayMyRequestsScreen(),
       const BarangayNotificationsScreen(),
+      const BarangayRideLogsScreen(),
       const BarangayProfileScreen(),
     ];
 
@@ -70,7 +77,7 @@ class _BarangayNavigationScreenState extends State<BarangayNavigationScreen> {
             currentIndex: _currentIndex,
             items: _items,
             notifBadge: unread,
-            notifIndex: 3,
+            notifIndex: 3, // Alerts tab index unchanged
             onTap: (index) => setState(() => _currentIndex = index),
           );
         },

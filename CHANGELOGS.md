@@ -4,6 +4,125 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 1] - Speed Tracking, Ride Session Logging & Speed Monitor
+
+**Status:** ✅ COMPLETED — May 10, 2026
+
+### 🎯 What This Phase Achieved:
+Implemented a full speed tracking and ride session logging system. GPS speed is captured every second with a position-diff fallback when GPS speed is unavailable. Zone pass-throughs are recorded as ride sessions with 3 snapshots per zone (approach, entry, exit). Barangay Officials now have a Logs tab to view session data including average speed, decibel reduction (placeholder until IoT hardware arrives), and per-snapshot breakdowns. A live Speed Monitor screen was added to Super Admin Developer Tools for Lockito mock testing and real GPS speed validation.
+
+### ✅ New Files
+
+| File | Purpose |
+|------|---------|
+| `lib/services/speed_service.dart` | Singleton — GPS speed every second, position-diff fallback, rolling buffer, average calculator |
+| `lib/models/ride_session.dart` | `RideSnapshot`, `RideSession` data models with `toMap()`/`fromMap()` |
+| `lib/screens/barangay/barangay_ride_logs_screen.dart` | Logs tab for Barangay Official — streams sessions, shows speed/dB stats, snapshot breakdown |
+| `lib/screens/test/speed_monitor_screen.dart` | Super Admin Dev Tools — live speed gauge, GPS vs fallback tag, last 20 readings log, clear button |
+
+### ✅ Modified Files
+
+#### `lib/services/firestore_service.dart`
+- **Added import:** `ride_session.dart`
+- **Added:** `createRideSession()` — creates a new `ride_sessions` doc, returns doc ID
+- **Added:** `closeRideSession()` — updates session with avg speed, dB reduction, snapshots, end time
+- **Added:** `streamRideSessions(barangayId)` — streams last 50 sessions for a barangay official
+- **Added:** `streamRiderSessions(riderUid)` — streams last 50 sessions for a specific rider
+
+#### `lib/providers/exhaust_provider.dart`
+- **Added imports:** `SpeedService`, `FirestoreService`, `RideSession`, `RestrictedArea`
+- **Added fields:** `_activeSessionId`, `_activeZoneId`, `_activeZoneName`, `_activeZoneBarangayId`, `_riderUid`, `_sessionSnapshots`, `_approachSnapshotTaken`, `_approachRadiusBuffer` (50m)
+- **Added getter:** `currentSpeedKph` — reads from `SpeedService.instance`
+- **Added:** `setRiderUid(uid)` — call after login to attach rider UID to session tracking
+- **Modified:** `updateLocation()` — now accepts `nearestZone` + `distanceToZone`, starts speed tracking on first fix, fires approach snapshot at 50m buffer before zone edge
+- **Modified:** `checkRestrictedAreaStatus()` — now accepts optional `zone` parameter; fires entry/exit snapshots, starts/closes Firestore session, clears speed buffer on entry
+- **Added:** `_takeSnapshot()` — creates `RideSnapshot` at approach/entry/exit with current speed and dB placeholder
+- **Added:** `_startSession()` — creates Firestore `ride_sessions` doc on zone entry
+- **Added:** `_closeSession()` — closes session doc with avg speed, dB values, all snapshots on zone exit
+
+#### `lib/screens/rider/map_screen.dart`
+- **Added imports:** `SpeedService`, `RestrictedArea`, `dart:math`
+- **Added:** `_haversineMeters()` helper — calculates distance between two GPS coordinates
+- **Modified:** `_onPositionUpdate()` — feeds each position to `SpeedService.instance.onPositionUpdate()`
+- **Modified:** `updateLocation()` call — now computes nearest zone + distance across all areas and passes them to `ExhaustProvider`
+
+#### `lib/screens/barangay/barangay_navigation_screen.dart`
+- **Added import:** `barangay_ride_logs_screen.dart`
+- **Added:** Logs `_NavItem` (bar chart icon) between Alerts and Profile tabs
+- **Added:** `BarangayRideLogsScreen()` to the screens list
+
+#### `lib/screens/shared/shared_profile_screen.dart`
+- **Added import:** `speed_monitor_screen.dart`
+- **Added:** `_Divider()` + Speed Monitor `_ActionRow` under HC-05 row in Developer Tools section
+
+#### `lib/main.dart`
+- **Added import:** `speed_service.dart`
+- **Added:** `ChangeNotifierProvider.value(value: SpeedService.instance)` to provider list
+
+### ✅ Firestore
+
+#### New Collection: `ride_sessions`
+```
+ride_sessions/{session_id}
+├── rider_uid         string
+├── zone_id           string
+├── zone_name         string
+├── barangay_id       string
+├── started_at        string (ISO 8601)
+├── ended_at          string (ISO 8601)
+├── avg_speed_kph     number
+├── decibel_before    number   ← 0.0 placeholder until IoT arrives
+├── decibel_after     number   ← 0.0 placeholder until IoT arrives
+├── decibel_reduced   number   ← calculated: before - after
+└── snapshots         array
+    └── { type, speed_kph, decibel_db, exhaust_state, zone_id, zone_name, timestamp }
+```
+
+#### New Composite Indexes
+| Collection | Field 1 | Field 2 | Scope |
+|---|---|---|---|
+| `ride_sessions` | `barangay_id` ASC | `started_at` DESC | Collection |
+| `ride_sessions` | `rider_uid` ASC | `started_at` DESC | Collection |
+
+### 📝 Logging Strategy
+| Trigger | What Is Logged |
+|---------|----------------|
+| 50m before zone edge | Approach snapshot — speed + dB + exhaust state |
+| Zone entry | Entry snapshot — speed + dB + exhaust state; session doc created |
+| Zone exit | Exit snapshot — speed + dB + exhaust state; session doc closed with averages |
+| Every second always | Speed reading stored in `SpeedService` buffer (not written to Firestore per tick) |
+
+### 📝 Notes
+- Decibel readings are `0.0` placeholders throughout — IoT noise sensor hardware has not arrived yet. When it does, only `decibelDb: 0.0` in `exhaust_provider.dart → _takeSnapshot()` needs to be replaced with the live BT reading.
+- `SpeedService` uses `geolocator` GPS speed (`m/s → km/h`). Falls back to Haversine position-diff calculation when GPS returns `-1`.
+- Speed Monitor screen is Super Admin only — not visible to Rider or Barangay Official roles.
+- `flutter analyze` — zero new errors. 21 pre-existing `info`-level warnings remain (tracked in tech debt — unchanged).
+
+### 🗂️ Folder Impact
+```
+lib/
+├── main.dart                                              ✅ UPDATED — SpeedService provider
+├── models/
+│   └── ride_session.dart                                  ✅ NEW
+├── services/
+│   ├── firestore_service.dart                             ✅ UPDATED — ride session methods
+│   └── speed_service.dart                                 ✅ NEW
+├── providers/
+│   └── exhaust_provider.dart                              ✅ UPDATED — speed + snapshot wiring
+├── screens/
+│   ├── rider/
+│   │   └── map_screen.dart                                ✅ UPDATED — SpeedService feed + zone distance
+│   ├── barangay/
+│   │   ├── barangay_navigation_screen.dart                ✅ UPDATED — Logs tab added
+│   │   └── barangay_ride_logs_screen.dart                 ✅ NEW
+│   ├── shared/
+│   │   └── shared_profile_screen.dart                     ✅ UPDATED — Speed Monitor in Dev Tools
+│   └── test/
+│       └── speed_monitor_screen.dart                      ✅ NEW
+```
+
+---
+
 ## [0.7.3 patch 1] - Barangay Polygon Expansion
 
 **Status:** ✅ COMPLETED — March 23, 2026
@@ -49,173 +168,15 @@ Expanded the `/barangays` Firestore collection from 2 entries to 16 by seeding 1
 ### 🎯 What This Phase Achieved:
 Validated DC motor spin control via single 5V relay module using a dedicated 9V battery as the motor power supply. Confirmed that the existing Arduino sketch (no code changes needed) can spin and stop a DC motor salvaged from an Epson printer using OPEN/CLOSE commands from the Flutter app over HC-05. This serves as the physical prototype foundation for the exhaust valve mechanism.
 
----
-
-### ✅ Completed This Session — DC Motor Spin Test (March 21, 2026)
-
-#### Hardware — DC Motor Wiring (Single Relay, Spin/Stop Only)
-
-**Components used:**
-- Arduino Uno
-- HC-05 Bluetooth module (already wired from Phase 7.1)
-- 5V single-channel relay module (already wired from Phase 7.1)
-- DC motor (salvaged from Epson printer)
-- 9V battery (dedicated motor power supply — separate from Arduino power)
-
-**Pin connections — Arduino to HC-05 (unchanged from Phase 7.1):**
-
-| HC-05 Pin | Arduino Pin |
-|-----------|-------------|
-| VCC | 5V |
-| GND | GND |
-| TX | Pin 6 (SoftwareSerial RX) |
-| RX | Pin 7 (SoftwareSerial TX) |
-
-**Pin connections — Arduino to Relay (unchanged from Phase 7.1):**
-
-| Relay Pin | Arduino Pin |
-|-----------|-------------|
-| S (signal) | Pin 8 |
-| + (power) | 5V |
-| – (ground) | GND |
-
-**New wiring — Relay screw terminals to DC Motor + 9V Battery:**
-
-| From | To | Notes |
-|------|----|-------|
-| 9V Battery (+) positive — small circle terminal | Relay COM screw | Power in to relay |
-| Relay NO screw | DC Motor Wire A (either wire) | Power out when relay ON |
-| 9V Battery (–) negative — large octagon terminal | DC Motor Wire B (other wire) | Completes motor circuit |
-| 9V Battery (–) negative — large octagon terminal | Arduino GND pin | Shared ground — critical, do not skip |
-
-> ⚠️ **Shared ground note:** The 9V battery negative connects to both Motor Wire B AND Arduino GND. In this test, both connections meet at Motor Wire B due to short jumper wire length. This is electrically correct — all ground points are connected together regardless of where they physically meet.
-
-> ⚠️ **9V battery terminal identification:** Small circle = positive (+). Large octagon = negative (–).
-
-> ⚠️ **NC terminal on relay:** Leave NC (normally closed) screw terminal unconnected. Only COM and NO are used.
-
-**How it works:**
-- Relay COM and NO are OPEN by default (no connection)
-- When Arduino sets Pin 8 HIGH → relay energizes → COM and NO connect → current flows from 9V battery through motor → motor spins
-- When Arduino sets Pin 8 LOW → relay de-energizes → COM and NO disconnect → no current → motor stops
-
----
-
-#### Arduino Sketch — Final (no changes from Phase 7.1)
-
-```cpp
-#include <SoftwareSerial.h>
-
-SoftwareSerial BTSerial(6, 7); // RX=6, TX=7
-
-const int RELAY_PIN = 8;
-
-void setup() {
-  Serial.begin(9600);
-  BTSerial.begin(9600);
-  pinMode(RELAY_PIN, OUTPUT);
-  digitalWrite(RELAY_PIN, LOW);
-  Serial.println("Ready. Waiting for BT data...");
-}
-
-void loop() {
-  static unsigned long lastHeartbeat = 0;
-  if (millis() - lastHeartbeat > 2000) {
-    Serial.println("Waiting...");
-    lastHeartbeat = millis();
-  }
-
-  if (BTSerial.available()) {
-    String received = "";
-    while (BTSerial.available()) {
-      received += (char)BTSerial.read();
-      delay(2);
-    }
-    received.trim();
-
-    if (received.length() > 0) {
-      Serial.print("Received: [");
-      Serial.print(received);
-      Serial.print("] length: ");
-      Serial.println(received.length());
-
-      if (received.indexOf("OPEN") >= 0) {
-        digitalWrite(RELAY_PIN, LOW);
-        Serial.println("Relay OFF — exhaust OPEN");
-        BTSerial.println("ACK:OPEN");
-      } else if (received.indexOf("CLOSE") >= 0) {
-        digitalWrite(RELAY_PIN, HIGH);
-        Serial.println("Relay ON — exhaust CLOSED");
-        BTSerial.println("ACK:CLOSE");
-      } else {
-        BTSerial.println("ACK:" + received);
-      }
-    }
-  }
-}
-```
-
-**Command behavior:**
-- `CLOSE` → Pin 8 HIGH → relay clicks → motor spins (one direction only)
-- `OPEN` → Pin 8 LOW → relay clicks → motor stops
-
----
-
-#### Validation Results
+### ✅ Validation Results
 - ✅ CLOSE command → relay energizes → motor spins confirmed
 - ✅ OPEN command → relay de-energizes → motor stops confirmed
 - ✅ Dedicated 9V battery successfully powers motor without affecting Arduino
 - ✅ Shared ground between 9V battery and Arduino confirmed working
 - ⚠️ Single relay = spin/stop only — no direction reversal possible with current setup
 
----
-
-#### Known Limitation — Single Relay Cannot Reverse Direction
-
-A single relay can only connect or disconnect power. It cannot swap the polarity on the motor terminals. To achieve clockwise and counter-clockwise rotation (required for the valve open/close prototype), **a second 5V relay module is required.**
-
-With 2 relays wired as a basic H-bridge:
-- Relay 1 HIGH + Relay 2 LOW → current flows Motor A→B → clockwise
-- Relay 1 LOW + Relay 2 HIGH → current flows Motor B→A → counter-clockwise
-- Both LOW → motor stopped
-- Both HIGH → **never do this — short circuit**
-
----
-
-### 🔜 Next Hardware Steps (Pre-Prototype)
-
-| Task | Notes | Status |
-|------|-------|--------|
-| Acquire second 5V relay module | Same type as current relay | ⏳ Pending |
-| Solder current wiring permanently | Breadboard → soldered connections | ⏳ Pending |
-| Wire second relay for direction control | H-bridge config — Relay 1 = Pin 8, Relay 2 = Pin 9 | ⏳ Pending |
-| Update Arduino sketch for CW/CCW | Add RELAY_PIN_2, update OPEN/CLOSE logic for direction | ⏳ Pending |
-| Test CW and CCW motor spin | Confirm both directions work from app | ⏳ Pending |
-| Build valve/cover prototype | Attach motor to physical exhaust cover mechanism | ⏳ Pending |
-| Test geofence → motor 90°/180° rotation | Enter restricted area → motor rotates to close cover → exit → motor rotates back | ⏳ Pending |
-
----
-
 ### 🗂️ Folder Impact
-```
-lib/
-├── screens/
-│   ├── shared/
-│   │   └── shared_profile_screen.dart    ℹ️  Unchanged
-│   ├── rider/
-│   │   └── dashboard_screen.dart         ℹ️  Unchanged
-│   └── test/
-│       └── bt_classic_test_screen.dart   ℹ️  Unchanged — used for this motor test session
-```
-
 > No Flutter code changes this session. All work was hardware wiring and validation.
-
----
-
-### ⚠️ Still Pending in Phase 7
-- [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
-- [ ] **7.20** — FCM push notifications (optional)
 
 ---
 
@@ -226,65 +187,9 @@ lib/
 ### 🎯 What This Phase Achieved:
 Cleaned up the rider dashboard by fully removing the temporary HC-05 dev test shortcut. Relocated the hardware test screen exclusively to the Super Admin profile under a new "Developer Tools" section. Fixed a stray brace compile error introduced during the removal. Verified zero errors on `flutter analyze` before pushing.
 
----
-
-### ✅ Completed This Session — Dev Tool Relocation + Dashboard Cleanup (March 21, 2026)
-
-#### Feature — `lib/screens/shared/shared_profile_screen.dart` updated
-- **Added:** `import '../test/bt_classic_test_screen.dart'`
-- **Added:** "Developer Tools" `_Section` block — only renders when `normalizedRole == 'superadmin'`
-- **Added:** `_ActionRow` — "HC-05 Hardware Test" with `bluetooth_searching` icon (indigo), subtitle "Test Classic Bluetooth & relay commands", navigates to `BtClassicTestScreen` via `Navigator.push`
-- **Result:** Dev hardware test is now role-gated — barangay officials and riders never see it
-- **Version bump:** `v0.7.0` → `v0.7.1` in About dialog and footer text
-
-#### Fix — `lib/screens/rider/dashboard_screen.dart`
-- **Removed:** `import '../test/bt_classic_test_screen.dart'` (line 6)
-- **Removed:** `_DevTestButton()` widget call from dashboard body column
-- **Removed:** Entire `_DevTestButton` class (was lines 498–514)
-- **Fixed:** Stray closing brace `}` left behind after class deletion — caused `expected_executable` compile error at line 495/496
-- **Result:** Rider dashboard is clean — no dev artifacts, compiles without errors
-
-#### Verification
-- `flutter analyze` — **zero errors** after all changes
-- Only pre-existing `info`-level deprecation warnings remain (tracked in tech debt)
-- Phase 8 task **8.7** marked ✅ — dev test button removed from production build
-
----
-
-### 🗂️ Updated Folder Impact
-```
-lib/
-├── screens/
-│   ├── shared/
-│   │   └── shared_profile_screen.dart    ✅ UPDATED — Developer Tools section (superadmin only)
-│   ├── rider/
-│   │   └── dashboard_screen.dart         ✅ UPDATED — _DevTestButton fully removed, stray brace fixed
-│   └── test/
-│       └── bt_classic_test_screen.dart   ℹ️  Unchanged — still exists, now only reachable via Super Admin
-```
-
----
-
-### ⚠️ Still Pending in Phase 7
-- [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
-- [ ] **7.19** — Firestore security rules (HIGH RISK — do last before demo)
-- [ ] **7.20** — FCM push notifications (optional)
-
----
-
-### 🔜 Next — Phase 8: Core HC-05 Automation
-
-**Status:** 🟡 UNBLOCKED — hardware validated, dev tooling cleaned up, ready to wire
-
-| Task | Notes | Status |
-|------|-------|--------|
-| 8.1 | Create `ClassicBluetoothService` — wraps HC-05 connection + send logic | ⏳ Next |
-| 8.2 | Wire `ExhaustProvider` — send `CLOSE` command on geofence entry | ⏳ Next |
-| 8.3 | Wire `ExhaustProvider` — send `OPEN` command on geofence exit | ⏳ Next |
-| 8.4 | Replace `BluetoothProvider` BLE scan with HC-05 Classic BT connection | ⏳ Next |
-| 8.5 | Log auto-closure events to Firestore | ⏳ Next |
-| 8.6 | End-to-end test — rider enters zone → relay clicks → valve closes | ⏳ Next |
-| 8.7 | ~~Remove `_DevTestButton` and `bt_classic_test_screen.dart` from production build~~ | ✅ Done |
+### ✅ Modified Files
+- `shared_profile_screen.dart` — Added Developer Tools section (superadmin only), HC-05 ActionRow, version bump v0.7.0 → v0.7.1
+- `dashboard_screen.dart` — Removed `_DevTestButton` widget, import, and class entirely. Fixed stray `}` compile error.
 
 ---
 
@@ -293,52 +198,12 @@ lib/
 **Status:** ✅ COMPLETED — March 19, 2026
 
 ### 🎯 What This Phase Achieved:
-Validated full two-way Classic Bluetooth communication between Flutter app and Arduino Uno via HC-05 module. Established OPEN/CLOSE/HELLO command protocol over Serial. Confirmed relay actuation from Flutter app. This unblocks Phase 8 hardware automation.
+Validated full two-way Classic Bluetooth communication between Flutter app and Arduino Uno via HC-05 module. Confirmed relay actuation from Flutter app. Unblocked Phase 8 hardware automation.
 
----
-
-### ✅ Completed This Session — HC-05 BT + Relay Validation (March 19, 2026)
-
-#### Feature — Classic Bluetooth (HC-05) Flutter Integration
-- **Added:** `flutter_bluetooth_serial: ^0.4.0` to `pubspec.yaml`
-- **Note:** Coexists with existing `flutter_blue_plus` — separate packages, no conflict
-- **Fix:** Manually patched `flutter_bluetooth_serial` cache `build.gradle` — added `namespace` field and upgraded `compileSdkVersion` to 34, replaced `jcenter()` with `mavenCentral()` — required for AGP compatibility on newer Android toolchain
-
-#### Feature — `lib/screens/test/bt_classic_test_screen.dart` — NEW FILE
-- **New folder:** `lib/screens/test/`
-- **Purpose:** Isolated standalone HC-05 hardware test screen — not wired to any provider
-- **Features:**
-  - Loads bonded/paired devices via `FlutterBluetoothSerial.instance.getBondedDevices()`
-  - Connects via `BluetoothConnection.toAddress(device.address)`
-  - Listens to `conn.input` stream — displays Arduino responses in real-time log
-  - Send commands: HELLO, OPEN, CLOSE
-  - Color-coded serial log — green for Arduino responses, blue for Flutter sends, gray for system messages
-  - Disconnect button, refresh paired devices, clear log
-  - Status bar at top — green when connected, red when not
-- **Note:** Dev-only screen — accessible via Super Admin profile → Developer Tools
-
-#### Hardware — HC-05 Module Configuration
-- **Issue:** HC-05 default baud rate was 115200 — too fast for `SoftwareSerial` on Arduino Uno
-- **Fix:** Entered AT mode and permanently set baud to 9600:
-  - `AT+UART=9600,0,0` → `OK`
-  - `AT+RESET` → `OK`
-- **Result:** HC-05 permanently configured at 9600 baud
-
-#### Hardware — Arduino Wiring (Final)
-| HC-05 Pin | Arduino Pin |
-|-----------|-------------|
-| VCC | 5V |
-| GND | GND |
-| TX | Pin 6 (SoftwareSerial RX) |
-| RX | Pin 7 (SoftwareSerial TX) |
-| Relay S | Pin 8 |
-| Relay + | 5V |
-| Relay - | GND |
-
-#### Validation Results
+### ✅ Validation Results
 - ✅ Flutter → HC-05 → Arduino: HELLO, OPEN, CLOSE received correctly
 - ✅ Arduino → HC-05 → Flutter: ACK responses displayed in app serial log
-- ✅ Relay clicks on CLOSE command, releases on OPEN command
+- ✅ Relay clicks on CLOSE, releases on OPEN
 - ✅ Full two-way communication confirmed at 9600 baud
 
 ---
@@ -348,94 +213,8 @@ Validated full two-way Classic Bluetooth communication between Flutter app and A
 **Status:** 🔄 IN PROGRESS (~98% of phase complete)
 **Date Started:** March 2026
 
-### 🎯 What This Phase Will Achieve:
-Expand the app from a single-role rider app into a full 3-role system — Super Admin, Barangay Official, and Rider. Adds role-based routing, Admin screens (dashboard, request inbox, manage officials, global map), Barangay Official screens (dashboard, submit request, request history, notifications), barangay boundary enforcement, and an in-app notification system.
-
----
-
-### 📋 Implementation Steps
-
-| Step | Task | Risk | Status |
-|------|------|------|--------|
-| 7.1 | Update `RestrictedArea` model | None | ✅ Done |
-| 7.2 | Update Sign Up screen — write `role: "rider"` | None | ✅ Done |
-| 7.3 | Update `AuthWrapper` — role-based routing | Low | ✅ Done |
-| 7.4 | Seed Super Admin in Firestore console manually | None | ⏳ Pending |
-| 7.5 | `streamApprovedAreas()` filter `status == "approved"` | Low | ✅ Done |
-| 7.6 | Remove Add Restricted Area from rider UI | None | ✅ Done |
-| 7.7 | `AdminNavigationScreen` + 4 skeleton screens | None | ✅ Done |
-| 7.8 | Admin Home Dashboard | None | ✅ Done |
-| 7.9 | Request Inbox + Detail + Approve/Reject flow | None | ✅ Done |
-| 7.10 | Manage Officials + Create Official form | None | ✅ Done |
-| 7.11 | Admin Global Map | None | ✅ Done |
-| 7.12 | `BarangayNavigationScreen` + 4 skeleton screens | None | ✅ Done |
-| 7.13 | Barangay Home Dashboard | None | ✅ Done |
-| 7.14 | Submit Request screen | None | ✅ Done |
-| 7.15 | Barangay boundary check — polygon point-in-polygon | None | ✅ Done |
-| 7.16 | My Requests — 3 tabs (Pending / Approved / Rejected) | None | ✅ Done |
-| 7.17 | Notifications screen + bell icon | None | ✅ Done |
-| 7.18 | Firestore notification docs on approve/reject/submit | Low | ✅ Done |
-| 7.19 | Tighten Firestore security rules | **HIGH** | ⏳ Pending |
-| 7.20 | FCM push notifications (optional) | Low | ⏳ Pending |
-
----
-
-### ✅ Completed — Manage Officials Overhaul + Notification Upgrades + Polygon Fix (March 2026)
-
-#### Feature — `admin_manage_officials_screen.dart` — Full replacement
-- Tappable cards → `AdminOfficialDetailScreen`
-- Multi-barangay support (max 3 per official)
-- Assign/remove barangay bottom sheet with cascading municipality → barangay picker
-- Assignment sends in-app notification to official
-
-#### Feature — `admin_create_official_screen.dart` — Full replacement
-- Calls `createOfficialAccountWithSync()` — writes `official_uid` back to barangay doc on creation
-- Fixes occupancy dot always showing vacant
-
-#### Feature — `barangay_notifications_screen.dart` — Full rewrite
-- Long-press enters multi-select mode
-- Swipe-to-delete, select all, mark selected as read, delete selected, delete all
-- Smart timestamps (time if today, date if older)
-
-#### Fix — `barangay_submit_request_screen.dart`
-- Polygon winding order fixed — world rectangle explicitly clockwise, boundary counterclockwise
-- Dark overlay now correctly dims outside the barangay boundary
-- Out-of-bounds error promoted from snackbar to modal — `barrierDismissible: false`, "I Understand" CTA
-
-#### Fix — `AppUser` model
-- Added `barangayIds: List<String>` and `barangayNames: List<String>`
-- Old single `barangayId`/`barangayName` kept as computed getters — no breaking changes
-
-#### Fix — `FirestoreService`
-- Added: `_syncBarangayOfficialUid`, `createOfficialAccountWithSync`, `assignBarangayToOfficial`, `removeBarangayFromOfficial`, `getBarangaysForOfficial`, `deleteNotification`, `deleteNotifications`, `deleteAllNotifications`, `markNotificationsRead`
-
----
-
-### ✅ Completed — Barangay Geofencing + Data Seeding (March 18, 2026)
-- Real polygon boundaries manually created and seeded via custom Node.js script (`add_barangay.js`)
-- `geo_utils.dart` — `isPointInPolygon()` ray casting + `firestorePolygonToLatLng()`
-- Initial seed: Lupok + Salug (Guiuan, Eastern Samar)
-- Expanded to 16 barangays in patch 0.7.3 patch 1 (March 23, 2026)
-
----
-
-### ✅ Completed — UI/UX Polish (March 15, 2026)
-- Notification system fully wired
-- `submitted_by_name` field added to zone requests
-- All 3 nav screens rebuilt with `_ProNavBar`
-- Profile screen redesigned — gradient header, role-matched colors
-- Rider map — pulsing GPS dot
-- Admin Global Map UI improved
-
----
-
-### ✅ Completed — Patches & Fixes (March 9, 2026)
-- `RestrictedArea.fromMap()` Firestore Timestamp crash fix
-- Firestore composite indexes for `restricted_areas`
-- `admin_request_detail_screen.dart` converted to `StatefulWidget`
-- Live location stream added to Admin and Barangay maps
-
----
+### 🎯 What This Phase Achieved:
+Expanded from single-role rider app to full 3-role system. Adds Admin screens (dashboard, inbox, officials, global map), Barangay Official screens (dashboard, submit, history, notifications), barangay boundary enforcement, and in-app notification system.
 
 ### ⚠️ Still Pending in Phase 7
 - [ ] **7.4** — Seed Super Admin in Firestore console (manual, 5 min)
@@ -485,11 +264,12 @@ Expand the app from a single-role rider app into a full 3-role system — Super 
 | 0.7.1 | HC-05 Classic BT Validation + Relay Test | ✅ Complete | Mar 19, 2026 |
 | 0.7.2 | Dev Tool Relocation + Rider Dashboard Cleanup | ✅ Complete | Mar 21, 2026 |
 | 0.7.3 | DC Motor Spin Test + Relay Wiring Validation | ✅ Complete | Mar 21, 2026 |
-| **0.7.3 patch 1** | **Barangay Polygon Expansion — 16 barangays seeded** | **✅ Complete** | **Mar 23, 2026** |
-| 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next | TBD |
+| 0.7.3 patch 1 | Barangay Polygon Expansion — 16 barangays seeded | ✅ Complete | Mar 23, 2026 |
+| **0.7.4 patch 1** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Complete** | **May 10, 2026** |
+| 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next (hardware) | TBD |
 | 0.8.0 | Core HC-05 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** March 23, 2026
+**Last Updated:** May 10, 2026

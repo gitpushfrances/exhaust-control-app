@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/bluetooth_provider.dart';
 import '../../providers/exhaust_provider.dart';
+import '../../services/classic_bluetooth_service.dart';
 import '../../widgets/bluetooth_connection_modal.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -35,8 +35,6 @@ class DashboardScreen extends StatelessWidget {
             _QuickActionsSection(),
             const SizedBox(height: 16),
             _LocationInfoCard(),
-            const SizedBox(height: 16),
-            // TODO: REMOVE BEFORE PRODUCTION — HC-05 hardware test
           ],
         ),
       ),
@@ -47,14 +45,14 @@ class DashboardScreen extends StatelessWidget {
 class _BluetoothConnectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final bluetoothProvider = context.watch<BluetoothProvider>();
+    final btService = context.watch<ClassicBluetoothService>();
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: bluetoothProvider.isConnected
+          color: btService.isConnected
               ? const Color(0xFF10B981)
               : const Color(0xFFEF4444),
           width: 2,
@@ -71,14 +69,14 @@ class _BluetoothConnectionCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => const BluetoothConnectionModal(),
-            );
-          },
+          onTap: btService.isConnected
+              ? null
+              : () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const BluetoothConnectionModal(),
+                  ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -87,16 +85,16 @@ class _BluetoothConnectionCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: bluetoothProvider.isConnected
+                    color: btService.isConnected
                         ? const Color(0xFF10B981).withValues(alpha: 0.1)
                         : const Color(0xFFEF4444).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
-                    bluetoothProvider.isConnected
+                    btService.isConnected
                         ? Icons.bluetooth_connected
                         : Icons.bluetooth_disabled,
-                    color: bluetoothProvider.isConnected
+                    color: btService.isConnected
                         ? const Color(0xFF10B981)
                         : const Color(0xFFEF4444),
                     size: 24,
@@ -108,11 +106,11 @@ class _BluetoothConnectionCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        bluetoothProvider.isConnected
+                        btService.isConnected
                             ? 'Connected'
-                            : bluetoothProvider.isConnecting
-                            ? 'Connecting...'
-                            : 'Not Connected',
+                            : btService.isConnecting
+                                ? 'Connecting...'
+                                : 'Not Connected',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -121,10 +119,9 @@ class _BluetoothConnectionCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        bluetoothProvider.isConnected
-                            ? bluetoothProvider.connectedDeviceName ??
-                                  'Unknown Device'
-                            : 'Tap to connect device',
+                        btService.isConnected
+                            ? btService.connectedDeviceName ?? 'HC-05'
+                            : 'Tap to connect HC-05',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Color(0xFF6B7280),
@@ -133,24 +130,15 @@ class _BluetoothConnectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (bluetoothProvider.isConnected)
-                  Column(
-                    children: [
-                      Icon(
-                        _getSignalIcon(bluetoothProvider.signalStrength),
-                        color: const Color(0xFF10B981),
-                        size: 20,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${bluetoothProvider.signalStrength}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                if (btService.isConnected)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.bluetooth_disabled,
+                      color: Color(0xFFEF4444),
+                    ),
+                    tooltip: 'Disconnect',
+                    onPressed: () =>
+                        context.read<ClassicBluetoothService>().disconnect(),
                   )
                 else
                   const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
@@ -161,20 +149,13 @@ class _BluetoothConnectionCard extends StatelessWidget {
       ),
     );
   }
-
-  IconData _getSignalIcon(int strength) {
-    if (strength >= 75) return Icons.signal_cellular_alt;
-    if (strength >= 50) return Icons.signal_cellular_alt_2_bar;
-    if (strength >= 25) return Icons.signal_cellular_alt_1_bar;
-    return Icons.signal_cellular_connected_no_internet_0_bar;
-  }
 }
 
 class _ExhaustStatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final exhaustProvider = context.watch<ExhaustProvider>();
-    final bluetoothProvider = context.watch<BluetoothProvider>();
+    final btService = context.watch<ClassicBluetoothService>();
     final color = _getStatusColor(exhaustProvider.currentState);
 
     return Container(
@@ -192,7 +173,6 @@ class _ExhaustStatusCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Compact horizontal status row
           Row(
             children: [
               Container(
@@ -244,12 +224,9 @@ class _ExhaustStatusCard extends StatelessWidget {
               ),
             ],
           ),
-
           const SizedBox(height: 16),
           const Divider(height: 1, color: Color(0xFFF3F4F6)),
           const SizedBox(height: 12),
-
-          // Auto mode toggle
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -275,9 +252,9 @@ class _ExhaustStatusCard extends StatelessWidget {
               ),
               Switch(
                 value: exhaustProvider.isAutoMode,
-                activeColor: const Color(0xFF3B82F6),
-                onChanged: bluetoothProvider.isConnected
-                    ? (value) => exhaustProvider.toggleAutoMode()
+                activeThumbColor: const Color(0xFF3B82F6),
+                onChanged: btService.isConnected
+                    ? (_) => exhaustProvider.toggleAutoMode()
                     : null,
               ),
             ],
@@ -314,9 +291,8 @@ class _QuickActionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final exhaustProvider = context.watch<ExhaustProvider>();
-    final bluetoothProvider = context.watch<BluetoothProvider>();
-    final isEnabled =
-        bluetoothProvider.isConnected && !exhaustProvider.isAutoMode;
+    final btService = context.watch<ClassicBluetoothService>();
+    final isEnabled = btService.isConnected && !exhaustProvider.isAutoMode;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,9 +313,7 @@ class _QuickActionsSection extends StatelessWidget {
                 label: 'Open Exhaust',
                 icon: Icons.volume_up,
                 color: const Color(0xFF10B981),
-                onPressed: isEnabled
-                    ? () => exhaustProvider.openExhaust()
-                    : null,
+                onPressed: isEnabled ? () => exhaustProvider.openExhaust() : null,
               ),
             ),
             const SizedBox(width: 12),
@@ -348,9 +322,7 @@ class _QuickActionsSection extends StatelessWidget {
                 label: 'Close Exhaust',
                 icon: Icons.volume_off,
                 color: const Color(0xFFEF4444),
-                onPressed: isEnabled
-                    ? () => exhaustProvider.closeExhaust()
-                    : null,
+                onPressed: isEnabled ? () => exhaustProvider.closeExhaust() : null,
               ),
             ),
           ],
@@ -381,15 +353,13 @@ class _ActionButton extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(12),
-        child: Container(
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             children: [
               Icon(
                 icon,
-                color: onPressed != null
-                    ? Colors.white
-                    : const Color(0xFF9CA3AF),
+                color: onPressed != null ? Colors.white : const Color(0xFF9CA3AF),
                 size: 28,
               ),
               const SizedBox(height: 8),
@@ -399,9 +369,7 @@ class _ActionButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: onPressed != null
-                      ? Colors.white
-                      : const Color(0xFF9CA3AF),
+                  color: onPressed != null ? Colors.white : const Color(0xFF9CA3AF),
                 ),
               ),
             ],

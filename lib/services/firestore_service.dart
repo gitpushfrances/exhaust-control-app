@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/restricted_area.dart';
 import '../models/app_user.dart';
+import '../models/ride_session.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -500,6 +501,71 @@ class FirestoreService {
       debugPrint('Error updating official barangay: $e');
       return false;
     }
+  }
+
+  // ─── Ride Sessions ────────────────────────────────────────────
+
+  /// Create a new ride session doc, returns the doc ID
+  Future<String?> createRideSession(RideSession session) async {
+    try {
+      final ref = await _db.collection('ride_sessions').add(session.toMap());
+      return ref.id;
+    } catch (e) {
+      debugPrint('Error creating ride session: $e');
+      return null;
+    }
+  }
+
+  /// Update session with final stats (avg speed, dB reduction, end time)
+  Future<void> closeRideSession({
+    required String sessionId,
+    required double avgSpeedKph,
+    required double decibelBefore,
+    required double decibelAfter,
+    required List<Map<String, dynamic>> snapshots,
+  }) async {
+    try {
+      await _db.collection('ride_sessions').doc(sessionId).update({
+        'ended_at': DateTime.now().toIso8601String(),
+        'avg_speed_kph': avgSpeedKph,
+        'decibel_before': decibelBefore,
+        'decibel_after': decibelAfter,
+        'decibel_reduced': (decibelBefore - decibelAfter).clamp(0.0, 200.0),
+        'snapshots': snapshots,
+      });
+    } catch (e) {
+      debugPrint('Error closing ride session: $e');
+    }
+  }
+
+  /// Stream all sessions for a barangay (for official logs screen)
+  Stream<List<RideSession>> streamRideSessions(String barangayId) {
+    return _db
+        .collection('ride_sessions')
+        .where('barangay_id', isEqualTo: barangayId)
+        .orderBy('started_at', descending: true)
+        .limit(50)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => RideSession.fromMap(d.id, d.data()))
+              .toList(),
+        );
+  }
+
+  /// Stream all sessions for a specific rider
+  Stream<List<RideSession>> streamRiderSessions(String riderUid) {
+    return _db
+        .collection('ride_sessions')
+        .where('rider_uid', isEqualTo: riderUid)
+        .orderBy('started_at', descending: true)
+        .limit(50)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => RideSession.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
   // ─── Barangay Boundary ────────────────────────────────────────

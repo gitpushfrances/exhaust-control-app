@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/bluetooth_provider.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
+import '../services/classic_bluetooth_service.dart';
 
-/// Bluetooth Connection Modal - Shows device list and connection options
 class BluetoothConnectionModal extends StatefulWidget {
   const BluetoothConnectionModal({super.key});
 
@@ -12,7 +12,29 @@ class BluetoothConnectionModal extends StatefulWidget {
 }
 
 class _BluetoothConnectionModalState extends State<BluetoothConnectionModal> {
-  bool _isScanning = false;
+  List<BluetoothDevice> _pairedDevices = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDevices();
+  }
+
+  Future<void> _loadDevices() async {
+    setState(() => _isLoading = true);
+    try {
+      final devices = await ClassicBluetoothService.instance.getPairedDevices();
+      if (mounted) {
+        setState(() {
+          _pairedDevices = devices;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +50,6 @@ class _BluetoothConnectionModalState extends State<BluetoothConnectionModal> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Container(
               margin: const EdgeInsets.only(top: 12),
               width: 40,
@@ -38,20 +59,18 @@ class _BluetoothConnectionModalState extends State<BluetoothConnectionModal> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Header
             Padding(
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
                   const Icon(
-                    Icons.bluetooth,
+                    Icons.bluetooth_searching,
                     color: Color(0xFF3B82F6),
                     size: 28,
                   ),
                   const SizedBox(width: 12),
                   const Text(
-                    'Connect Device',
+                    'Connect HC-05',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -66,27 +85,67 @@ class _BluetoothConnectionModalState extends State<BluetoothConnectionModal> {
                 ],
               ),
             ),
-
             const Divider(height: 1),
-
-            // Content
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _PairedDevicesSection(
-                      onScanPressed: () {
-                        setState(() => _isScanning = true);
-                        context.read<BluetoothProvider>().scanForDevices().then(
-                          (_) => setState(() => _isScanning = false),
-                        );
-                      },
-                      isScanning: _isScanning,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Paired Devices',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF111827),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _isLoading ? null : _loadDevices,
+                          icon: const Icon(Icons.refresh, size: 18),
+                          label: const Text('Refresh'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF3B82F6),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    _AvailableDevicesSection(isScanning: _isScanning),
+                    const SizedBox(height: 12),
+                    if (_isLoading)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(),
+                        ),
+                      )
+                    else if (_pairedDevices.isEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF59E0B)),
+                        ),
+                        child: const Text(
+                          'No paired devices found.\nPair your HC-05 from phone Bluetooth Settings first (PIN: 1234).',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF92400E),
+                            height: 1.5,
+                          ),
+                        ),
+                      )
+                    else
+                      ..._pairedDevices.map(
+                        (device) => _DeviceTile(
+                          device: device,
+                          onConnected: () => Navigator.pop(context),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -98,369 +157,142 @@ class _BluetoothConnectionModalState extends State<BluetoothConnectionModal> {
   }
 }
 
-/// Paired Devices Section
-class _PairedDevicesSection extends StatelessWidget {
-  final VoidCallback onScanPressed;
-  final bool isScanning;
+class _DeviceTile extends StatefulWidget {
+  final BluetoothDevice device;
+  final VoidCallback onConnected;
 
-  const _PairedDevicesSection({
-    required this.onScanPressed,
-    required this.isScanning,
-  });
+  const _DeviceTile({required this.device, required this.onConnected});
 
   @override
-  Widget build(BuildContext context) {
-    final bluetoothProvider = context.watch<BluetoothProvider>();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Previously Paired',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF111827),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: isScanning ? null : onScanPressed,
-              icon: Icon(
-                isScanning ? Icons.refresh : Icons.bluetooth_searching,
-                size: 18,
-              ),
-              label: Text(isScanning ? 'Scanning...' : 'Scan'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF3B82F6),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        if (bluetoothProvider.pairedDevices.isEmpty)
-          _EmptyState(
-            icon: Icons.bluetooth_disabled,
-            message: 'No paired devices',
-          )
-        else
-          ...bluetoothProvider.pairedDevices.map(
-            (device) => _DeviceListItem(device: device, isPaired: true),
-          ),
-      ],
-    );
-  }
+  State<_DeviceTile> createState() => _DeviceTileState();
 }
 
-/// Available Devices Section
-class _AvailableDevicesSection extends StatelessWidget {
-  final bool isScanning;
+class _DeviceTileState extends State<_DeviceTile> {
+  bool _isConnecting = false;
 
-  const _AvailableDevicesSection({required this.isScanning});
-
-  @override
-  Widget build(BuildContext context) {
-    final bluetoothProvider = context.watch<BluetoothProvider>();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Available Devices',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF111827),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (isScanning)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 12),
-                  Text(
-                    'Scanning for devices...',
-                    style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (bluetoothProvider.availableDevices.isEmpty)
-          _EmptyState(
-            icon: Icons.search_off,
-            message: 'No devices found',
-            subtitle: 'Tap "Scan" to search',
-          )
-        else
-          ...bluetoothProvider.availableDevices.map(
-            (device) => _DeviceListItem(device: device, isPaired: false),
-          ),
-      ],
+  Future<void> _connect() async {
+    setState(() => _isConnecting = true);
+    final success = await ClassicBluetoothService.instance.connect(
+      widget.device,
     );
+    if (!mounted) return;
+    setState(() => _isConnecting = false);
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✓ HC-05 connected'),
+          backgroundColor: Color(0xFF10B981),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      widget.onConnected();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✕ Connection failed. Check HC-05 is powered on.'),
+          backgroundColor: Color(0xFFEF4444),
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
   }
-}
-
-/// Device List Item
-class _DeviceListItem extends StatelessWidget {
-  final Map<String, dynamic> device;
-  final bool isPaired;
-
-  const _DeviceListItem({required this.device, required this.isPaired});
 
   @override
   Widget build(BuildContext context) {
-    final bluetoothProvider = context.watch<BluetoothProvider>();
-    final isCurrentDevice = bluetoothProvider.connectedDeviceId == device['id'];
-    final isConnecting = bluetoothProvider.isConnecting;
+    final btService = context.watch<ClassicBluetoothService>();
+    final isThisDeviceConnected =
+        btService.isConnected &&
+        btService.connectedDeviceName == widget.device.name;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isCurrentDevice
-            ? const Color(0xFF10B981).withOpacity(0.05)
+        color: isThisDeviceConnected
+            ? const Color(0xFF10B981).withValues(alpha: 0.05)
             : const Color(0xFFF9FAFB),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isCurrentDevice
+          color: isThisDeviceConnected
               ? const Color(0xFF10B981)
               : const Color(0xFFE5E7EB),
-          width: isCurrentDevice ? 2 : 1,
+          width: isThisDeviceConnected ? 2 : 1,
         ),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: isConnecting
-              ? null
-              : () async {
-                  final success = await bluetoothProvider.connectToDevice(
-                    device['id'],
-                    device['name'],
-                  );
-
-                  if (context.mounted) {
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✓ Connected successfully'),
-                          backgroundColor: Color(0xFF10B981),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                      Navigator.pop(context);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✕ Connection failed. Try again.'),
-                          backgroundColor: Color(0xFFEF4444),
-                          duration: Duration(seconds: 2),
-                        ),
-                      );
-                    }
-                  }
-                },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Device Icon
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B82F6).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.settings_remote,
-                    color: Color(0xFF3B82F6),
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Device Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        device['name'] ?? 'Unknown Device',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF111827),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          if (isPaired)
-                            const Icon(
-                              Icons.check_circle,
-                              size: 14,
-                              color: Color(0xFF10B981),
-                            ),
-                          if (isPaired) const SizedBox(width: 4),
-                          Text(
-                            isPaired ? 'Paired' : device['id'],
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF6B7280),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Signal Strength
-                Column(
-                  children: [
-                    Icon(
-                      _getSignalIcon(device['signalStrength'] ?? 0),
-                      size: 18,
-                      color: const Color(0xFF6B7280),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${device['signalStrength'] ?? 0}%',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF9CA3AF),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-
-                // Connect Button
-                if (isCurrentDevice && bluetoothProvider.isConnected)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'CONNECTED',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  )
-                else
-                  ElevatedButton(
-                    onPressed: isConnecting
-                        ? null
-                        : () async {
-                            final success = await bluetoothProvider
-                                .connectToDevice(device['id'], device['name']);
-                            if (context.mounted) {
-                              if (success) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('✓ Connected successfully'),
-                                    backgroundColor: Color(0xFF10B981),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                                Navigator.pop(context);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      '✕ Connection failed. Try again.',
-                                    ),
-                                    backgroundColor: Color(0xFFEF4444),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3B82F6),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: Text(
-                      isPaired ? 'RECONNECT' : 'CONNECT',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.bluetooth,
+            color: Color(0xFF3B82F6),
+            size: 20,
           ),
         ),
-      ),
-    );
-  }
-
-  IconData _getSignalIcon(int strength) {
-    if (strength >= 75) return Icons.signal_cellular_alt;
-    if (strength >= 50) return Icons.signal_cellular_alt_2_bar;
-    if (strength >= 25) return Icons.signal_cellular_alt_1_bar;
-    return Icons.signal_cellular_connected_no_internet_0_bar;
-  }
-}
-
-/// Empty State Widget
-class _EmptyState extends StatelessWidget {
-  final IconData icon;
-  final String message;
-  final String? subtitle;
-
-  const _EmptyState({required this.icon, required this.message, this.subtitle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        children: [
-          Icon(icon, size: 48, color: const Color(0xFF9CA3AF)),
-          const SizedBox(height: 12),
-          Text(
-            message,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF6B7280),
-            ),
+        title: Text(
+          widget.device.name ?? 'Unknown',
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+            color: Color(0xFF111827),
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              subtitle!,
-              style: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
-            ),
-          ],
-        ],
+        ),
+        subtitle: Text(
+          widget.device.address,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+        ),
+        trailing: isThisDeviceConnected
+            ? Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'CONNECTED',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              )
+            : _isConnecting
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF3B82F6),
+                ),
+              )
+            : ElevatedButton(
+                onPressed: btService.isConnecting ? null : _connect,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF3B82F6),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'CONNECT',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
       ),
     );
   }

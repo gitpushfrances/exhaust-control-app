@@ -7,6 +7,9 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../providers/exhaust_provider.dart';
 import '../../providers/restricted_areas_provider.dart';
+import '../../services/speed_service.dart';
+import '../../models/restricted_area.dart';
+import 'dart:math';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -69,6 +72,7 @@ class _MapScreenState extends State<MapScreen>
 
   Future<void> _onPositionUpdate(Position position) async {
     if (!mounted) return;
+    SpeedService.instance.onPositionUpdate(position);
 
     String address = '';
     try {
@@ -117,16 +121,48 @@ class _MapScreenState extends State<MapScreen>
       position.latitude,
       position.longitude,
     );
+
+    // Find nearest zone + distance for approach detection
+    RestrictedArea? nearestZone;
+    double? distanceToNearest;
+    for (final area in areasProvider.areas) {
+      final d = _haversineMeters(
+        position.latitude,
+        position.longitude,
+        area.latitude,
+        area.longitude,
+      );
+      if (distanceToNearest == null || d < distanceToNearest) {
+        distanceToNearest = d;
+        nearestZone = area;
+      }
+    }
+
     exhaustProvider.updateLocation(
       lat: position.latitude,
       lng: position.longitude,
       locationName: address,
       isRestricted: isRestricted,
+      nearestZone: nearestZone,
+      distanceToZone: distanceToNearest,
     );
 
     if (!wasReady) {
       _mapController.move(LatLng(position.latitude, position.longitude), 15.0);
     }
+  }
+
+  double _haversineMeters(double lat1, double lng1, double lat2, double lng2) {
+    const r = 6371000.0;
+    final dLat = (lat2 - lat1) * pi / 180;
+    final dLng = (lng2 - lng1) * pi / 180;
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * pi / 180) *
+            cos(lat2 * pi / 180) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
+    return r * 2 * asin(sqrt(a));
   }
 
   void _centerOnUser() {

@@ -14,6 +14,8 @@ import 'screens/signup_screen.dart';
 import 'screens/rider/main_navigation_screen.dart';
 import 'screens/admin/admin_navigation_screen.dart';
 import 'screens/barangay/barangay_navigation_screen.dart';
+import 'services/classic_bluetooth_service.dart';
+import 'services/speed_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +36,8 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => BluetoothProvider()),
         ChangeNotifierProvider(create: (_) => ExhaustProvider()),
         ChangeNotifierProvider(create: (_) => RestrictedAreasProvider()),
+        ChangeNotifierProvider.value(value: ClassicBluetoothService.instance),
+        ChangeNotifierProvider.value(value: SpeedService.instance),
       ],
       child: MaterialApp(
         title: 'Exhaust Controller',
