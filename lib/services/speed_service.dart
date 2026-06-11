@@ -56,7 +56,7 @@ class SpeedService extends ChangeNotifier {
   /// Start 1-second polling — call on app start / zone approach
   void startTracking() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+    _timer = Timer.periodic(const Duration(milliseconds: 250), (_) => _tick());
   }
 
   /// Stop polling and clear buffer — call on zone exit

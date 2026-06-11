@@ -21,6 +21,12 @@ class RestrictedAreasProvider with ChangeNotifier {
 
   /// Check if a point is inside any restricted area
   bool isPointInRestrictedArea(double lat, double lng) {
+    debugPrint('🗺️ checking point $lat,$lng against ${_areas.length} areas');
+    for (final area in _areas) {
+      debugPrint(
+        '   area: ${area.name} center: ${area.latitude},${area.longitude} radius: ${area.radius}m',
+      );
+    }
     return _areas.any((area) => area.containsPoint(lat, lng));
   }
 

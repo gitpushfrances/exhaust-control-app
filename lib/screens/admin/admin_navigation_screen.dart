@@ -5,6 +5,7 @@ import 'admin_request_inbox_screen.dart';
 import 'admin_manage_officials_screen.dart';
 import 'admin_global_map_screen.dart';
 import '../shared/shared_profile_screen.dart';
+import 'admin_reports_screen.dart';
 
 class AdminNavigationScreen extends StatefulWidget {
   const AdminNavigationScreen({super.key});
@@ -38,6 +39,11 @@ class _AdminNavigationScreenState extends State<AdminNavigationScreen> {
       label: 'Map',
     ),
     _NavItem(
+      icon: Icons.bar_chart_outlined,
+      activeIcon: Icons.bar_chart_rounded,
+      label: 'Reports',
+    ),
+    _NavItem(
       icon: Icons.person_outline_rounded,
       activeIcon: Icons.person_rounded,
       label: 'Profile',
@@ -53,6 +59,7 @@ class _AdminNavigationScreenState extends State<AdminNavigationScreen> {
       const AdminRequestInboxScreen(),
       const AdminManageOfficialsScreen(),
       const AdminGlobalMapScreen(),
+      const AdminReportsScreen(),
       const SharedProfileScreen(),
     ];
 

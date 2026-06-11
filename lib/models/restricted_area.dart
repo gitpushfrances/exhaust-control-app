@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
+
 class RestrictedArea {
   final String id;
   final String name;
@@ -35,16 +38,19 @@ class RestrictedArea {
 
   bool containsPoint(double lat, double lng) {
     const double earthRadius = 6371000;
-    final double dLat = _toRadians(lat - latitude);
-    final double dLng = _toRadians(lng - longitude);
+    final double dLat = (lat - latitude) * math.pi / 180;
+    final double dLng = (lng - longitude) * math.pi / 180;
     final double a =
-        (dLat / 2).sin() * (dLat / 2).sin() +
-        latitude.toRadians().cos() *
-            lat.toRadians().cos() *
-            (dLng / 2).sin() *
-            (dLng / 2).sin();
-    final double c = 2 * a.sqrt().asin();
-    return earthRadius * c <= radius;
+        math.pow(math.sin(dLat / 2), 2) +
+        math.cos(latitude * math.pi / 180) *
+            math.cos(lat * math.pi / 180) *
+            math.pow(math.sin(dLng / 2), 2);
+    final double c = 2 * math.asin(math.sqrt(a));
+    final double distance = earthRadius * c;
+    debugPrint(
+      '📏 distance to $name: ${distance.toStringAsFixed(1)}m (radius: ${radius}m)',
+    );
+    return distance <= radius;
   }
 
   Map<String, dynamic> toMap() {

@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 2] - Admin Reports Screen + GPS Smoothing + Speed Overlay
+
+**Status:** ✅ COMPLETED — Jun 11, 2026
+
+### 🎯 What This Phase Achieved:
+Added a Reports tab to the Super Admin navigation with a barangay list screen and a detailed per-barangay report screen showing the assigned official, summary stats (riders passed, avg speed, avg dB, avg dB reduced), and per-session zone pass records with approach/entry/exit snapshot breakdown. Improved GPS update rate from 8 seconds to 250ms for smoother map movement. Added a live speed overlay (km/h) on the Rider map screen. Updated SpeedService polling to 250ms to match GPS rate.
+
+### ✅ New Files
+
+| File | Purpose |
+|------|---------|
+| `lib/screens/admin/admin_reports_screen.dart` | Reports tab — barangay list → detail with official info, summary cards, session records |
+
+### ✅ Modified Files
+
+#### `lib/screens/rider/map_screen.dart`
+- **Updated:** `_startLocationStream()` — interval changed from 8s to 250ms, accuracy upgraded to `bestForNavigation`, `distanceFilter` set to 0
+- **Added:** Speed overlay widget — live km/h display bottom-left of map, reads from `SpeedService.instance.currentKph`
+
+#### `lib/services/speed_service.dart`
+- **Updated:** Timer interval changed from 1 second to 250ms to match GPS update rate
+
+#### `lib/screens/admin/admin_navigation_screen.dart`
+- **Added import:** `admin_reports_screen.dart`
+- **Added:** Reports `_NavItem` (bar chart icon) between Map and Profile tabs
+- **Added:** `AdminReportsScreen()` to screens list
+
+### 📝 Pending — Code Hygiene (tracked, not yet applied)
+- `withOpacity` → `withValues()` — 8 instances across login, signup, splash, permission_handler, custom_button, custom_text_field
+- `value` → `initialValue` — 4 instances in admin_create_official, admin_manage_officials
+- `use_build_context_synchronously` — admin_create_official, barangay_notifications
+- `curly_braces_in_flow_control_structures` — restricted_area.dart, admin_create_official
+- `dangling_library_doc_comment` — geo_utils.dart
+- `prefer_final_fields` — restricted_areas_provider
+- `use_null_aware_elements` — admin_global_map_screen
+
+---
+
 ## [0.7.4 patch 1] - Speed Tracking, Ride Session Logging & Speed Monitor
 
 **Status:** ✅ COMPLETED — May 10, 2026
@@ -266,8 +304,9 @@ Expanded from single-role rider app to full 3-role system. Adds Admin screens (d
 | 0.7.3 | DC Motor Spin Test + Relay Wiring Validation | ✅ Complete | Mar 21, 2026 |
 | 0.7.3 patch 1 | Barangay Polygon Expansion — 16 barangays seeded | ✅ Complete | Mar 23, 2026 |
 | **0.7.4 patch 1** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Complete** | **May 10, 2026** |
+| **0.7.4 patch 2** | **Admin Reports Screen + Nav Tab + Code Cleanup (pending)** | **✅ Complete** | **Jun 11, 2026** |
 | 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next (hardware) | TBD |
-| 0.8.0 | Core HC-05 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
+| 0.8.0 | Core HC-105 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
 
 ---
 

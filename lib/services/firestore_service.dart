@@ -32,8 +32,10 @@ class FirestoreService {
         .where('status', isEqualTo: 'approved')
         .snapshots()
         .map(
-          (snap) =>
-              snap.docs.map((d) => RestrictedArea.fromMap(d.data())).toList(),
+          (snap) => snap.docs.map((d) {
+            final data = {...d.data(), 'id': d.id};
+            return RestrictedArea.fromMap(data);
+          }).toList(),
         );
   }
 
@@ -525,12 +527,33 @@ class FirestoreService {
     required List<Map<String, dynamic>> snapshots,
   }) async {
     try {
+      // Extract per-snapshot speed values
+      final approachSnap = snapshots.firstWhere(
+        (s) => s['type'] == 'approach',
+        orElse: () => {},
+      );
+      final entrySnap = snapshots.firstWhere(
+        (s) => s['type'] == 'entry',
+        orElse: () => {},
+      );
+      final exitSnap = snapshots.firstWhere(
+        (s) => s['type'] == 'exit',
+        orElse: () => {},
+      );
+
       await _db.collection('ride_sessions').doc(sessionId).update({
         'ended_at': DateTime.now().toIso8601String(),
         'avg_speed_kph': avgSpeedKph,
+        // Speed breakdown
+        'speed_before': (approachSnap['speed_kph'] ?? 0).toDouble(),
+        'speed_during': (entrySnap['speed_kph'] ?? 0).toDouble(),
+        'speed_after': (exitSnap['speed_kph'] ?? 0).toDouble(),
+        // Decibel breakdown
         'decibel_before': decibelBefore,
         'decibel_after': decibelAfter,
         'decibel_reduced': (decibelBefore - decibelAfter).clamp(0.0, 200.0),
+        // Decibel per snapshot
+        'decibel_during': (entrySnap['decibel_db'] ?? 0).toDouble(),
         'snapshots': snapshots,
       });
     } catch (e) {

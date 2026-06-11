@@ -124,6 +124,14 @@ class AuthWrapper extends StatelessWidget {
           return const BarangayNavigationScreen();
         } else {
           // Default: rider (also handles null role gracefully)
+          if (authProvider.appUser != null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              context.read<ExhaustProvider>().setRiderUid(
+                authProvider.appUser!.uid,
+              );
+              context.read<RestrictedAreasProvider>().initialize();
+            });
+          }
           return const MainNavigationScreen();
         }
       },

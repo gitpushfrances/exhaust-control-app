@@ -154,6 +154,9 @@ class ExhaustProvider with ChangeNotifier {
   /// Check if current location is in a restricted area
   /// This will be called by the location service when position updates
   void checkRestrictedAreaStatus(bool isInRestricted, {RestrictedArea? zone}) {
+    debugPrint(
+      '📍 checkRestrictedAreaStatus — isInRestricted: $isInRestricted, oldValue: $_isInRestrictedArea, autoMode: $_isAutoMode, riderUid: $_riderUid',
+    );
     final oldValue = _isInRestrictedArea;
     _isInRestrictedArea = isInRestricted;
 
@@ -184,10 +187,10 @@ class ExhaustProvider with ChangeNotifier {
           _activeZoneId ?? '',
           _activeZoneName ?? '',
         );
-        _closeSession();
         setExhaustState(ExhaustState.open);
         ClassicBluetoothService.instance.send('OPEN');
         _approachSnapshotTaken = false;
+        _closeSession();
       }
     }
 
@@ -208,8 +211,13 @@ class ExhaustProvider with ChangeNotifier {
   }
 
   Future<void> _startSession() async {
-    if (_riderUid == null) return;
-    _sessionSnapshots.clear();
+    debugPrint(
+      '🔥 _startSession called — riderUid: $_riderUid, zoneId: $_activeZoneId',
+    );
+    if (_riderUid == null) {
+      debugPrint('❌ _startSession aborted — riderUid is null');
+      return;
+    }
     final session = RideSession(
       id: '',
       riderUid: _riderUid!,

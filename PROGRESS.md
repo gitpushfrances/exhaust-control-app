@@ -2,7 +2,7 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** May 10, 2026
+**Last Updated:** Jun 11, 2026
 
 ---
 
@@ -293,7 +293,8 @@ flutter_launcher_icons: ^0.14.1
 | 16 | DC Motor Spin Test Validated | ✅ Done | Mar 21 |
 | 17 | Barangay Polygon Expansion — 16 barangays seeded | ✅ Done | Mar 23 |
 | **18** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Done** | **May 10, 2026** |
-| 19 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| **19** | **Admin Reports Screen + GPS Smoothing + Speed Overlay** | **✅ Done** | **Jun 11, 2026** |
+| 20 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
 | 20 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
 | 21 | IoT Decibel Sensor Integrated | ⏳ Pending hardware | TBD |
 | 22 | Security Rules + Super Admin Seed | 🔄 Next | TBD |
@@ -312,7 +313,8 @@ flutter_launcher_icons: ^0.14.1
 | Single relay — no direction control yet | Medium | Needs second relay for CW/CCW — Phase 7.4 |
 | Breadboard wiring not yet soldered | Medium | Solder before prototype demo |
 | Debug `print()` throughout codebase | Low | Clean before final demo |
-| `withOpacity` → `withValues()` (~12 instances remaining) | Low | Batch fix before demo |
+| `withOpacity` → `withValues()` (~8 instances remaining) | Low | Batch fix before demo — tracked in 0.7.4 patch 2 |
+| Code hygiene — `value` → `initialValue`, async context, curly braces | Low | 13 info warnings — tracked in 0.7.4 patch 2, fix before demo |
 | `bt_classic_test_screen.dart` | Low | Keep until Phase 8 validated, then delete |
 | Developer Tools section in `shared_profile_screen.dart` | Low | Remove after Phase 8 complete |
 | `flutter_bluetooth_serial` cache `build.gradle` patch | Low | Document for fresh installs |
@@ -321,4 +323,4 @@ flutter_launcher_icons: ^0.14.1
 ---
 
 **For detailed changes, see:** CHANGELOG.md
-**Last Updated:** May 10, 2026
+**Last Updated:** Jun 11, 2026

@@ -55,10 +55,10 @@ class _MapScreenState extends State<MapScreen>
 
   void _startLocationStream() {
     final locationSettings = AndroidSettings(
-      accuracy: LocationAccuracy.high,
-      intervalDuration: const Duration(seconds: 8),
-      distanceFilter: 5,
-      foregroundNotificationConfig: const ForegroundNotificationConfig(
+      accuracy: LocationAccuracy.bestForNavigation,
+      intervalDuration: Duration(milliseconds: 250),
+      distanceFilter: 0,
+      foregroundNotificationConfig: ForegroundNotificationConfig(
         notificationText: 'Exhaust Controller is monitoring your location',
         notificationTitle: 'Location Active',
         enableWakeLock: true,
@@ -285,6 +285,61 @@ class _MapScreenState extends State<MapScreen>
               address: _displayAddress,
               locationReady: _locationReady,
               isRestricted: exhaustProvider.isInRestrictedArea,
+            ),
+          ),
+
+          // Speed overlay
+          Positioned(
+            bottom: 24,
+            left: 16,
+            child: Consumer<ExhaustProvider>(
+              builder: (context, exhaust, _) {
+                final speed = SpeedService.instance.currentKph;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.2),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        speed.toStringAsFixed(0),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          height: 1.0,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 3),
+                        child: Text(
+                          'km/h',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
 
