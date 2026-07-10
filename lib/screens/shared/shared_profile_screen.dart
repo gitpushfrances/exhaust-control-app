@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/bluetooth_provider.dart';
 import '../test/bt_classic_test_screen.dart';
+import '../test/speed_monitor_screen.dart';
 
 class SharedProfileScreen extends StatelessWidget {
   const SharedProfileScreen({super.key});
@@ -213,6 +214,19 @@ class SharedProfileScreen extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                         builder: (_) => const BtClassicTestScreen(),
+                      ),
+                    ),
+                  ),
+                  _Divider(),
+                  _ActionRow(
+                    icon: Icons.speed_rounded,
+                    title: 'Speed Monitor',
+                    subtitle: 'Live GPS speed • fallback indicator • log',
+                    color: const Color(0xFF6366F1),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const SpeedMonitorScreen(),
                       ),
                     ),
                   ),
