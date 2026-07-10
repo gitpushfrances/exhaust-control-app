@@ -59,14 +59,18 @@ class ClassicBluetoothService extends ChangeNotifier {
   }
 
   /// Send a command string to the Arduino.
-  /// Silently no-ops if not connected.
-  Future<void> send(String command) async {
-    if (!_isConnected || _connection == null) return;
+  /// Returns true if the command was actually written to the connection,
+  /// false if not connected or the write failed. Callers MUST check this
+  /// before treating a command as having reached the hardware.
+  Future<bool> send(String command) async {
+    if (!_isConnected || _connection == null) return false;
     try {
       _connection!.output.add(utf8.encode('$command\r\n'));
       await _connection!.output.allSent;
+      return true;
     } catch (_) {
       _handleDisconnect();
+      return false;
     }
   }
 

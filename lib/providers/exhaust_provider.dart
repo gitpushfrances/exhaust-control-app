@@ -56,6 +56,10 @@ class ExhaustProvider with ChangeNotifier {
   // Speed
   double get currentSpeedKph => SpeedService.instance.currentKph;
 
+  // Valve command failure tracking
+  bool _valveError = false;
+  bool get valveError => _valveError;
+
   /// Call after login with the rider's UID
   void setRiderUid(String uid) => _riderUid = uid;
 
@@ -153,7 +157,10 @@ class ExhaustProvider with ChangeNotifier {
 
   /// Check if current location is in a restricted area
   /// This will be called by the location service when position updates
-  void checkRestrictedAreaStatus(bool isInRestricted, {RestrictedArea? zone}) {
+  Future<void> checkRestrictedAreaStatus(
+    bool isInRestricted, {
+    RestrictedArea? zone,
+  }) async {
     debugPrint(
       '📍 checkRestrictedAreaStatus — isInRestricted: $isInRestricted, oldValue: $_isInRestrictedArea, autoMode: $_isAutoMode, riderUid: $_riderUid',
     );
@@ -163,9 +170,18 @@ class ExhaustProvider with ChangeNotifier {
     if (_isInRestrictedArea != oldValue && _isAutoMode) {
       if (_isInRestrictedArea) {
         // Zone entry
-        setExhaustState(ExhaustState.closed);
-        _autoClosures++;
-        ClassicBluetoothService.instance.send('CLOSE');
+        final sent = await ClassicBluetoothService.instance.send('CLOSE');
+        _valveError = !sent;
+
+        if (sent) {
+          setExhaustState(ExhaustState.closed);
+          _autoClosures++;
+        } else {
+          debugPrint(
+            '⚠️ CLOSE failed — BT not connected. Valve state NOT updated.',
+          );
+        }
+
         SpeedService.instance.clearBuffer();
 
         final z = zone;
@@ -179,16 +195,27 @@ class ExhaustProvider with ChangeNotifier {
           _activeZoneId ?? '',
           _activeZoneName ?? '',
         );
-        _startSession();
+        // Only log a session if the command actually reached hardware
+        if (sent) _startSession();
       } else {
         // Zone exit
+        final sent = await ClassicBluetoothService.instance.send('OPEN');
+        _valveError = !sent;
+
         _takeSnapshot(
           SnapshotType.exit,
           _activeZoneId ?? '',
           _activeZoneName ?? '',
         );
-        setExhaustState(ExhaustState.open);
-        ClassicBluetoothService.instance.send('OPEN');
+
+        if (sent) {
+          setExhaustState(ExhaustState.open);
+        } else {
+          debugPrint(
+            '⚠️ OPEN failed — BT not connected. Valve state NOT updated.',
+          );
+        }
+
         _approachSnapshotTaken = false;
         _closeSession();
       }

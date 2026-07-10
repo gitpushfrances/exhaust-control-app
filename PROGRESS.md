@@ -38,7 +38,7 @@
 | Dev Tooling / Code Hygiene | 100% | Dev screens role-gated, rider dashboard production-clean ✅ |
 | Hardware Prototype (CW/CCW + valve) | 0% | Needs second relay + soldering + prototype build |
 | IoT Decibel Sensor Integration | 0% | Hardware not arrived — dB is 0.0 placeholder |
-| Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire into ExhaustProvider |
+| Phase 8 HC-05 Automation | ~40% | Core trigger logic (`checkRestrictedAreaStatus` → BT send on entry/exit) already implemented, validated via Lockito simulation July 10 2026. Remaining: ACK/timeout confirmation, real-ride test, CW/CCW once second relay wired. |
 
 ---
 
@@ -216,8 +216,10 @@ Single relay = spin and stop only. CW/CCW requires a second relay — tracked in
 ### ⚠️ Immediate Next Actions
 1. **Step 7.4** — Seed Super Admin in Firestore console (manual, 5 min)
 2. **Step 7.19** — Tighten Firestore security rules (do last, high risk)
-3. **Phase 7.4 hardware** — Acquire second relay, solder wiring, wire CW/CCW
-4. **IoT sensor** — When decibel hardware arrives, update `decibelDb: 0.0` in `exhaust_provider.dart → _takeSnapshot()`
+3. **BT send() reliability** — Add ACK/timeout confirmation before logging auto-closure state/session (High priority, flagged July 10)
+4. **Phase 7.4 hardware** — Wire second relay + motor driver, solder wiring, CW/CCW direction control (relay + driver + mic already acquired)
+5. **IoT sensor** — Wire decibel mic input, replace `decibelDb: 0.0` placeholder in `exhaust_provider.dart → _takeSnapshot()`
+6. **Real-ride test** — Validate GPS auto-trigger on an actual ride, not just Lockito simulation
 
 ---
 
@@ -294,8 +296,9 @@ flutter_launcher_icons: ^0.14.1
 | 17 | Barangay Polygon Expansion — 16 barangays seeded | ✅ Done | Mar 23 |
 | **18** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Done** | **May 10, 2026** |
 | **19** | **Admin Reports Screen + GPS Smoothing + Speed Overlay** | **✅ Done** | **Jun 11, 2026** |
-| 20 | Second Relay + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
-| 20 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
+| 20 | GPS→BT Auto-Trigger Validated (Simulated) | ✅ Done | July 10, 2026 |
+| 21 | Second Relay + Motor Driver + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| 22 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
 | 21 | IoT Decibel Sensor Integrated | ⏳ Pending hardware | TBD |
 | 22 | Security Rules + Super Admin Seed | 🔄 Next | TBD |
 | 23 | MVP Complete (Phase 8 Full Automation) | ⏳ Next | TBD |

@@ -461,6 +461,8 @@ void loop() {
 | Item | Priority | Notes |
 |------|----------|-------|
 | Firestore rules too permissive | **High** | Fix Step 7.19 before demo |
+| `ClassicBluetoothService.send()` silently no-ops when disconnected | **High** | `checkRestrictedAreaStatus()` sets exhaust state + logs Firestore session BEFORE confirming BT command reached Arduino. If BT drops mid-ride, app logs a false "closed" event with no real valve action. Needs ACK-timeout confirmation before state/count/session are committed. |
+| Dead trig code in `restricted_area.dart` | Low | Unused hand-rolled `DoubleExtension` (`sin/cos/asin/sqrt/atan` via Taylor series) + unused `_toRadians()` — real math uses `dart:math` correctly, this is unused bloat. Delete before demo. |
 | Super Admin not seeded | Medium | Required to log in as admin |
 | IoT decibel sensor not integrated | Medium | One line to update when hardware arrives |
 | Motor rotation timed stop | Medium | `delay()` based — needs limit switch |
@@ -481,7 +483,9 @@ void loop() {
 |---------|-------|--------|------|
 | 0.7.3 patch 1 | Barangay Polygon Expansion | ✅ Done | Mar 23, 2026 |
 | **0.7.4 patch 1** | **Speed Tracking + Ride Logging + Speed Monitor** | **✅ Done** | **May 10, 2026** |
-| 0.7.4 | Second Relay + Solder + CW/CCW | 🟡 Next (hardware) | TBD |
+| **0.7.4 patch 3** | **GPS Geofence → BT Auto-Trigger Validated (Lockito simulation, single relay spin/stop)** | **✅ Done** | **July 10, 2026** |
+| 0.7.4 | Second Relay + Motor Driver + Solder + CW/CCW | 🟡 Next (hardware) | TBD |
+| 0.7.x | IoT Decibel Mic Sensor Integration | ⏳ Next (hardware) | TBD |
 | 0.7.5 | Physical Valve Prototype + Rotation Test | ⏳ Next | TBD |
 | 0.7.x | IoT Decibel Sensor Integration | ⏳ Pending hardware | TBD |
 | 0.7.x | Security Rules + Super Admin Seed | 🔄 Next | TBD |
@@ -530,6 +534,6 @@ Created for educational purposes as part of a capstone project.
 
 ---
 
-**Last Updated:** May 10, 2026
-**Version:** 0.7.4 patch 1
-**Status:** Active Development — Phase 7.4 hardware next, Phase 8 unblocked
+**Last Updated:** July 10, 2026
+**Version:** 0.7.4 patch 3
+**Status:** Active Development — GPS→BT auto-trigger validated (simulated), second relay + decibel mic hardware next
