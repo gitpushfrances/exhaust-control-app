@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 3] - GPS Geofence Auto-Trigger Validated (Simulated)
+
+**Status:** ✅ COMPLETED — July 10, 2026
+
+### 🎯 What This Phase Achieved:
+Discovered that Phase 8 automation logic (`checkRestrictedAreaStatus()` calling `ClassicBluetoothService.instance.send('CLOSE'/'OPEN')` on zone entry/exit) was already implemented in `exhaust_provider.dart`, despite prior docs listing Phase 8 as 0%/unblocked-not-started. Debugged and fixed a silent GPS→trigger failure caused by a loose HC-05 TX/RX jumper wire connection (intermittent noise on serial line). After rewiring, validated the full automatic chain using Lockito GPS mock through a real seeded barangay zone: entry correctly triggered `CLOSE` (motor spun via single relay), exit correctly triggered `OPEN` (motor stopped). This is real hardware response to simulated GPS movement — not yet tested on an actual moving ride.
+
+### 🐞 Bugs Found & Fixed
+- **Loose HC-05 TX/RX jumper wires** — caused continuous garbage bytes (`�`) on serial read, blocking all real command parsing. Fixed by reseating connections firmly; confirmed via clean single-command echo.
+
+### ⚠️ Known Limitations (documented, not fixed this session)
+- `ClassicBluetoothService.send()` silently no-ops if BT is disconnected — `checkRestrictedAreaStatus()` does not currently verify the command reached the Arduino before logging state/session/closure count. Flagged as High priority tech debt.
+- Test was simulated GPS (Lockito) with stationary hardware bench setup — not validated on an actual moving motorcycle yet.
+- Single relay only — spin/stop confirmed, no CW/CCW direction control yet (Phase 7.4 hardware, second relay in hand, not yet wired).
+
+### 📝 Also Identified
+- Unused/dead hand-rolled trigonometry (`DoubleExtension.sin/cos/asin/sqrt/atan`) and unused `_toRadians()` in `restricted_area.dart` — not called anywhere, real logic correctly uses `dart:math`. Flagged for removal, not a functional bug.
+
+---
+
 ## [0.7.4 patch 2] - Admin Reports Screen + GPS Smoothing + Speed Overlay
 
 **Status:** ✅ COMPLETED — Jun 11, 2026
