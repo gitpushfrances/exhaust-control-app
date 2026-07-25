@@ -48,6 +48,11 @@ class SpeedService extends ChangeNotifier {
 
   double get currentKph => _latest?.kph ?? 0.0;
 
+  // Placeholder until the IoT decibel mic arrives — same pattern as
+  // decibelDb: 0.0 in exhaust_provider.dart. Swap this single getter to
+  // read the live BT decibel value once hardware is wired.
+  double get currentDb => 0.0;
+
   /// Call this every time geolocator gives a new position (from map_screen)
   void onPositionUpdate(Position position) {
     _lastPosition = position;

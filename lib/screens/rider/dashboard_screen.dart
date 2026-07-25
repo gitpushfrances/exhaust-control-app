@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/exhaust_provider.dart';
 import '../../services/classic_bluetooth_service.dart';
+import '../../services/speed_service.dart';
 import '../../widgets/bluetooth_connection_modal.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -72,11 +73,11 @@ class _BluetoothConnectionCard extends StatelessWidget {
           onTap: btService.isConnected
               ? null
               : () => showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => const BluetoothConnectionModal(),
-                  ),
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const BluetoothConnectionModal(),
+                ),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -109,8 +110,8 @@ class _BluetoothConnectionCard extends StatelessWidget {
                         btService.isConnected
                             ? 'Connected'
                             : btService.isConnecting
-                                ? 'Connecting...'
-                                : 'Not Connected',
+                            ? 'Connecting...'
+                            : 'Not Connected',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -313,7 +314,10 @@ class _QuickActionsSection extends StatelessWidget {
                 label: 'Open Exhaust',
                 icon: Icons.volume_up,
                 color: const Color(0xFF10B981),
-                onPressed: isEnabled ? () => exhaustProvider.openExhaust() : null,
+                isActive: exhaustProvider.isOpen,
+                onPressed: isEnabled
+                    ? () => exhaustProvider.openExhaust()
+                    : null,
               ),
             ),
             const SizedBox(width: 12),
@@ -322,60 +326,209 @@ class _QuickActionsSection extends StatelessWidget {
                 label: 'Close Exhaust',
                 icon: Icons.volume_off,
                 color: const Color(0xFFEF4444),
-                onPressed: isEnabled ? () => exhaustProvider.closeExhaust() : null,
+                isActive: exhaustProvider.isClosed,
+                onPressed: isEnabled
+                    ? () => exhaustProvider.closeExhaust()
+                    : null,
               ),
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        const _LiveTelemetryCard(),
       ],
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   final String label;
   final IconData icon;
   final Color color;
+  final bool isActive;
   final VoidCallback? onPressed;
 
   const _ActionButton({
     required this.label,
     required this.icon,
     required this.color,
+    required this.isActive,
     this.onPressed,
   });
 
   @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: onPressed != null ? color : const Color(0xFFE5E7EB),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                color: onPressed != null ? Colors.white : const Color(0xFF9CA3AF),
-                size: 28,
+    final disabled = widget.onPressed == null;
+    // Lit when this is the button matching the real exhaust state; dimmed
+    // otherwise. Disabled (no BT / auto mode on) always shows the flat
+    // grey regardless of state.
+    final bg = disabled
+        ? const Color(0xFFE5E7EB)
+        : widget.isActive
+        ? widget.color
+        : widget.color.withValues(alpha: 0.12);
+    final fg = disabled
+        ? const Color(0xFF9CA3AF)
+        : widget.isActive
+        ? Colors.white
+        : widget.color;
+
+    return GestureDetector(
+      onTapDown: disabled ? null : (_) => setState(() => _pressed = true),
+      onTapUp: disabled ? null : (_) => setState(() => _pressed = false),
+      onTapCancel: disabled ? null : () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: Material(
+          color: bg,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: widget.onPressed,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Column(
+                children: [
+                  Icon(widget.icon, color: fg, size: 28),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: fg,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: onPressed != null ? Colors.white : const Color(0xFF9CA3AF),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveTelemetryCard extends StatelessWidget {
+  const _LiveTelemetryCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: SpeedService.instance,
+      builder: (context, _) {
+        final speed = SpeedService.instance.currentKph;
+        final db = SpeedService.instance.currentDb;
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _TelemetryStat(
+                  icon: Icons.speed,
+                  label: 'SPEED',
+                  value: speed.toStringAsFixed(0),
+                  unit: 'km/h',
+                  color: const Color(0xFF3B82F6),
+                ),
+              ),
+              Container(width: 1, height: 36, color: const Color(0xFFF3F4F6)),
+              Expanded(
+                child: _TelemetryStat(
+                  icon: Icons.graphic_eq,
+                  label: 'NOISE',
+                  value: db.toStringAsFixed(0),
+                  unit: 'dB',
+                  color: const Color(0xFF8B5CF6),
                 ),
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+class _TelemetryStat extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final String unit;
+  final Color color;
+
+  const _TelemetryStat({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.unit,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 20),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF9CA3AF),
+                letterSpacing: 1.0,
+              ),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                Text(
+                  unit,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
-      ),
+      ],
     );
   }
 }

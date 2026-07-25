@@ -2,7 +2,7 @@
 
 **Project Type:** Capstone Project - Automatic Motorcycle Exhaust Noise Control System
 **Technology:** Flutter, Firebase, Bluetooth, GPS, OpenStreetMap
-**Last Updated:** Jun 11, 2026
+**Last Updated:** Jul 25, 2026
 
 ---
 
@@ -13,6 +13,8 @@
 > DC motor spin test completed — motor spins and stops via CLOSE/OPEN from Flutter app.
 > Barangay polygon seeding expanded to 16 barangays — all manually created, no third-party source.
 > Speed tracking + ride session logging added — SpeedService, RideSession, Barangay Logs tab, Speed Monitor Dev Tool.
+> Phase 8 core trigger logic confirmed already implemented and validated via Lockito GPS simulation (July 10, 2026).
+> Rider Map/Dashboard UX pass completed — compass with animated north-reset, tile caching for weak connections, Quick Actions real-state toggle, live speed/dB telemetry card (July 25, 2026).
 > IoT decibel sensor hardware not yet arrived — dB fields are 0.0 placeholders throughout.
 > Next hardware step: acquire second relay, solder wiring, wire CW/CCW direction control.
 > Phase 8 automation is unblocked and ready to wire once direction control is confirmed.
@@ -35,6 +37,7 @@
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
 | Barangay Polygon Seeding | 100% | 16 barangays seeded — more to be added incrementally ✅ |
 | Speed Tracking & Ride Logging | 100% | SpeedService, RideSession, Logs tab, Speed Monitor ✅ |
+| Rider Map/Dashboard UX Polish | 100% | Compass w/ animated north-reset, tile caching, Quick Actions real-state toggle, live telemetry card ✅ — not yet field-tested on weak signal / real ride |
 | Dev Tooling / Code Hygiene | 100% | Dev screens role-gated, rider dashboard production-clean ✅ |
 | Hardware Prototype (CW/CCW + valve) | 0% | Needs second relay + soldering + prototype build |
 | IoT Decibel Sensor Integration | 0% | Hardware not arrived — dB is 0.0 placeholder |
@@ -220,6 +223,7 @@ Single relay = spin and stop only. CW/CCW requires a second relay — tracked in
 4. **Phase 7.4 hardware** — Wire second relay + motor driver, solder wiring, CW/CCW direction control (relay + driver + mic already acquired)
 5. **IoT sensor** — Wire decibel mic input, replace `decibelDb: 0.0` placeholder in `exhaust_provider.dart → _takeSnapshot()`
 6. **Real-ride test** — Validate GPS auto-trigger on an actual ride, not just Lockito simulation
+7. **Field-test map UX polish** — Confirm tile caching actually helps under real weak/unstable signal, and confirm compass + recenter behave correctly during actual motorcycle movement (only bench-tested so far)
 
 ---
 
@@ -297,7 +301,8 @@ flutter_launcher_icons: ^0.14.1
 | **18** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Done** | **May 10, 2026** |
 | **19** | **Admin Reports Screen + GPS Smoothing + Speed Overlay** | **✅ Done** | **Jun 11, 2026** |
 | 20 | GPS→BT Auto-Trigger Validated (Simulated) | ✅ Done | July 10, 2026 |
-| 21 | Second Relay + Motor Driver + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
+| 21 | Map Compass + Tile Caching + Quick Actions Toggle + Live Telemetry | ✅ Done | July 25, 2026 |
+| 22 | Second Relay + Motor Driver + Solder + CW/CCW Direction Control | ⏳ Next | TBD |
 | 22 | Physical Valve Prototype Built + Rotation Test | ⏳ Next | TBD |
 | 21 | IoT Decibel Sensor Integrated | ⏳ Pending hardware | TBD |
 | 22 | Security Rules + Super Admin Seed | 🔄 Next | TBD |
@@ -326,4 +331,5 @@ flutter_launcher_icons: ^0.14.1
 ---
 
 **For detailed changes, see:** CHANGELOG.md
-**Last Updated:** Jun 11, 2026
+**Maintained by:** Development Team
+**Last Updated:** Jul 25, 2026
