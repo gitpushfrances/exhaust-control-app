@@ -76,7 +76,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
+        decoration: const BoxDecoration(gradient: AppColors.splashGradient),
         child: Center(
           child: FadeTransition(
             opacity: _fadeAnimation,
@@ -85,13 +85,13 @@ class _SplashScreenState extends State<SplashScreen>
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // ReWatch Logo
+                  // SilencerX Logo
                   Container(
-                    width: 120,
-                    height: 120,
+                    width: 180,
+                    height: 180,
                     decoration: BoxDecoration(
                       color: AppColors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.black.withOpacity(0.1),
@@ -101,7 +101,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ],
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(28),
                       child: Image.asset(
                         'assets/images/logo.png',
                         fit: BoxFit.cover,

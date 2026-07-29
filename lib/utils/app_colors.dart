@@ -54,4 +54,16 @@ class AppColors {
     end: Alignment.bottomRight,
     colors: [secondary, secondaryDark],
   );
+
+  // Brand Colors (from SilencerX logo)
+  static const brandViolet = Color(0xFF7C3AED); // Violet 600
+  static const brandVioletDark = Color(0xFF4C1D95); // Violet 900
+
+  // Splash Screen Gradient — black fading into the logo's violet, matches
+  // the SilencerX badge background instead of the app's blue brand color
+  static const splashGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [black, brandVioletDark, brandViolet],
+  );
 }
