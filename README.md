@@ -41,6 +41,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | HC-05 Hardware Validation | 100% | Two-way comms + relay confirmed ✅ |
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
 | Barangay Polygon Seeding | 100% | 16 barangays seeded ✅ |
+| Rider Map/Dashboard UX Polish | 100% | Compass w/ animated north-reset, tile caching, Quick Actions toggle, live telemetry ✅ — not yet field-tested on weak signal / real ride |
 | IoT Decibel Integration | 0% | Hardware pending — dB fields are 0.0 placeholders |
 | Hardware Prototype (CW/CCW) | 0% | Needs second relay + soldering |
 | Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire |
@@ -56,9 +57,14 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 
 **Rider Role:**
 - [x] Dashboard — BT connection status, exhaust status, quick actions, live location
-- [x] Live Map — pulsing GPS dot, restricted zone circles, recenter FAB, RESTRICTED badge
+- [x] Live Map — pulsing GPS dot, restricted zone circles, always-visible compass, RESTRICTED badge
+- [x] Compass — needle tracks map rotation opposite-wise; tap smoothly animates rotation-to-north + zoom-to-default + recenter-on-live-position together
+- [x] Tile caching — `flutter_map` built-in disk cache configured (300MB, 1-day freshness) for faster renders on weak/unstable connections
+- [x] Last-known-position fast render — map centers on cached GPS fix immediately instead of a hardcoded default while waiting for the first live fix
+- [x] Quick Actions — Open/Close Exhaust now a true toggle pair reflecting real exhaust state (lit/dimmed), with press-scale tap feedback
+- [x] Live telemetry card — real-time speed + dB placeholder below Quick Actions
 - [x] BLE scanning and connection
-- [x] GPS tracking every 8 seconds with reverse geocoding
+- [x] GPS tracking every 250ms with reverse geocoding
 - [x] Restricted area detection on every GPS tick (Haversine)
 - [x] Dashboard production-clean — no dev artifacts
 
@@ -484,6 +490,7 @@ void loop() {
 | 0.7.3 patch 1 | Barangay Polygon Expansion | ✅ Done | Mar 23, 2026 |
 | **0.7.4 patch 1** | **Speed Tracking + Ride Logging + Speed Monitor** | **✅ Done** | **May 10, 2026** |
 | **0.7.4 patch 3** | **GPS Geofence → BT Auto-Trigger Validated (Lockito simulation, single relay spin/stop)** | **✅ Done** | **July 10, 2026** |
+| **0.7.4 patch 4** | **Map Compass + Tile Caching + Quick Actions Toggle + Live Telemetry** | **✅ Done** | **July 25, 2026** |
 | 0.7.4 | Second Relay + Motor Driver + Solder + CW/CCW | 🟡 Next (hardware) | TBD |
 | 0.7.x | IoT Decibel Mic Sensor Integration | ⏳ Next (hardware) | TBD |
 | 0.7.5 | Physical Valve Prototype + Rotation Test | ⏳ Next | TBD |
@@ -510,6 +517,9 @@ void loop() {
 - Barangay polygon seeding — 16 barangays uploaded
 - Speed Monitor — live speed display, GPS vs fallback tag
 - Ride session logging — sessions created/closed in Firestore on zone entry/exit
+- Map compass — rotate gesture, needle tracking, tap-to-reset (rotation + zoom + recenter) confirmed on-device
+- Quick Actions toggle — lit/dimmed states confirmed matching real exhaust state, press feedback confirmed
+- Live telemetry card — speed display confirmed updating in real time
 
 ### ⏳ Pending
 - CW/CCW motor direction (needs second relay)
@@ -518,6 +528,8 @@ void loop() {
 - IoT decibel sensor readings
 - Firestore security rules
 - iOS support
+- **Field validation of tile caching** under actual weak/unstable signal conditions (only confirmed on normal connectivity so far)
+- **Compass + recenter behavior** during actual motorcycle movement (only bench-tested so far)
 
 ---
 
@@ -534,6 +546,6 @@ Created for educational purposes as part of a capstone project.
 
 ---
 
-**Last Updated:** July 10, 2026
-**Version:** 0.7.4 patch 3
-**Status:** Active Development — GPS→BT auto-trigger validated (simulated), second relay + decibel mic hardware next
+**Last Updated:** July 25, 2026
+**Version:** 0.7.4 patch 4
+**Status:** Active Development — Rider map/dashboard UX polish complete (compass, tile caching, Quick Actions toggle, live telemetry); pending field validation on weak signal + real ride, second relay + decibel mic hardware next

@@ -29,6 +29,25 @@ bool isPointInPolygon(double lat, double lng, List<dynamic> polygon) {
   return intersections % 2 == 1;
 }
 
+// ─── Resolve Barangay Name From a GPS Point ───────────────────
+/// Checks [lat, lng] against every seeded barangay polygon and returns
+/// the matching barangay_name. Returns '' if the point falls outside
+/// all seeded boundaries (e.g. rider is outside Guiuan).
+String getBarangayForPoint(
+  double lat,
+  double lng,
+  List<Map<String, dynamic>> barangays,
+) {
+  for (final b in barangays) {
+    final polygon = b['boundary_polygon'] as List<dynamic>? ?? [];
+    if (polygon.isEmpty) continue;
+    if (isPointInPolygon(lat, lng, polygon)) {
+      return b['barangay_name'] as String? ?? '';
+    }
+  }
+  return '';
+}
+
 // ─── Convert Firestore Polygon → LatLng List ──────────────────
 /// Converts Firestore [{lat, lng}] array to flutter_map LatLng list
 /// Used to draw the boundary polygon on the map

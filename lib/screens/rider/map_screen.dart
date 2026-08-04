@@ -9,6 +9,8 @@ import '../../providers/exhaust_provider.dart';
 import '../../providers/restricted_areas_provider.dart';
 import '../../services/speed_service.dart';
 import '../../models/restricted_area.dart';
+import '../../services/firestore_service.dart';
+import '../../utils/geo_utils.dart';
 import 'dart:math';
 
 class MapScreen extends StatefulWidget {
@@ -32,6 +34,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   late final Animation<double> _pulseAnimation;
   StreamSubscription<Position>? _positionStream;
   StreamSubscription<MapEvent>? _mapEventSub;
+  List<Map<String, dynamic>> _allBarangays = [];
+
+  // The last position we actually accepted as "real" movement — used to
+  // filter out GPS scatter so the marker/address don't drift while the
+  // rider is genuinely stationary.
+  double? _lastAcceptedLat;
+  double? _lastAcceptedLng;
+  static const double _stationaryRadiusMeters = 6.0;
 
   @override
   void initState() {
@@ -52,6 +62,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // this matters most on slow/unstable connections.
     _loadLastKnownPosition();
     _startLocationStream();
+    _loadBarangays();
 
     _mapEventSub = _mapController.mapEventStream.listen((event) {
       final rotation = event.camera.rotation;
@@ -82,6 +93,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       // No cached fix available — the live stream will populate the map
       // shortly, so this is safe to ignore.
     }
+  }
+
+  /// Loads all seeded barangay polygons once so live GPS fixes can be
+  /// resolved to a barangay locally, instead of depending on OSM's
+  /// reverse-geocode (which often leaves subLocality empty for rural
+  /// barangays here in Guiuan).
+  Future<void> _loadBarangays() async {
+    final barangays = await FirestoreService().getAllBarangays();
+    if (!mounted) return;
+    setState(() => _allBarangays = barangays);
   }
 
   static const double _defaultZoom = 15.0;
@@ -156,17 +177,56 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     if (!mounted) return;
     SpeedService.instance.onPositionUpdate(position);
 
+    // Let the very first fix through unconditionally so the UI updates
+    // right away instead of sitting on "Fetching location..." — the
+    // first GPS fix after a cold start is often low-accuracy and would
+    // otherwise get filtered out, adding a real delay before anything
+    // shows on screen. Once we have one fix, apply the stricter filters.
+    if (_locationReady) {
+      // Reject poor-accuracy fixes outright — these come from weak/
+      // obstructed sky view (indoors, roof cover, tall nearby structures)
+      // and will drag the marker around no matter how good our distance
+      // filtering is. 20m is generous; tighten to ~12-15m once field-
+      // tested outdoors.
+      const maxTrustedAccuracyMeters = 20.0;
+      if (position.accuracy > maxTrustedAccuracyMeters) {
+        return;
+      }
+    }
+
+    // If this fix is within normal GPS scatter of the last accepted
+    // position, treat it as noise: skip moving the marker, re-geocoding,
+    // and re-running zone checks entirely. Prevents the "calibrating"
+    // wander when the device isn't actually moving.
+    if (_lastAcceptedLat != null && _lastAcceptedLng != null) {
+      final movedMeters = _haversineMeters(
+        _lastAcceptedLat!,
+        _lastAcceptedLng!,
+        position.latitude,
+        position.longitude,
+      );
+      if (movedMeters < _stationaryRadiusMeters) {
+        return;
+      }
+    }
+
     String address = '';
     try {
       final placemarks = await placemarkFromCoordinates(
         position.latitude,
         position.longitude,
       ).timeout(const Duration(seconds: 6));
-
       if (placemarks.isNotEmpty) {
         final p = placemarks.first;
         final street = p.thoroughfare ?? p.street ?? '';
-        final barangay = p.subLocality ?? '';
+        final resolvedBarangay = getBarangayForPoint(
+          position.latitude,
+          position.longitude,
+          _allBarangays,
+        );
+        final barangay = resolvedBarangay.isNotEmpty
+            ? resolvedBarangay
+            : (p.subLocality ?? '');
         final municipality = p.locality ?? '';
         final province = p.administrativeArea ?? '';
         final region = p.subAdministrativeArea ?? '';
@@ -180,7 +240,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         ].where((s) => s.isNotEmpty).toList();
         address = parts.isNotEmpty ? parts.join(', ') : '';
       }
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('[Geocode ERROR] $e');
+      debugPrint('$st');
+    }
 
     if (address.isEmpty) {
       address =
@@ -196,6 +259,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _locationReady = true;
       _displayAddress = address;
     });
+    _lastAcceptedLat = position.latitude;
+    _lastAcceptedLng = position.longitude;
 
     final exhaustProvider = context.read<ExhaustProvider>();
     final areasProvider = context.read<RestrictedAreasProvider>();

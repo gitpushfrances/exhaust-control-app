@@ -591,8 +591,18 @@ class FirestoreService {
         );
   }
 
-  // ─── Barangay Boundary ────────────────────────────────────────
+  // ─── All Barangays (for local point-in-polygon lookup) ────────
+  Future<List<Map<String, dynamic>>> getAllBarangays() async {
+    try {
+      final snap = await _db.collection('barangays').get();
+      return snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList();
+    } catch (e) {
+      debugPrint('Error fetching all barangays: $e');
+      return [];
+    }
+  }
 
+  // ─── Barangay Boundary ────────────────────────────────────────
   Future<Map<String, dynamic>?> getBarangayBoundary(String barangayId) async {
     try {
       final doc = await _db.collection('barangays').doc(barangayId).get();

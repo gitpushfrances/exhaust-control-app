@@ -4,6 +4,136 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 5] - Barangay-Aware Live Address + GPS Jitter/Accuracy Filtering
+
+**Status:** ✅ COMPLETED — August 4, 2026
+
+### 🎯 What This Phase Achieved:
+Fixed two related rider-facing issues on the Map screen: the live location
+address showing only municipality/province ("Guiuan, Eastern Visayas,
+Philippines") with no barangay, and the GPS marker/speed drifting while
+the device was stationary. Barangay resolution now checks the rider's
+live coordinates against the app's own 16 seeded barangay polygons
+(reusing the same ray-casting point-in-polygon logic already trusted for
+zone-request boundary enforcement in `barangay_submit_request_screen.dart`),
+falling back to OSM's `subLocality` only if no seeded polygon matches.
+GPS/speed jitter was addressed with a layered filter: an accuracy-based
+rejection (fixes worse than 20m are dropped, except the very first fix
+after cold start so the UI doesn't stall on "Fetching location..."), a
+6-meter stationary-radius gate that skips marker/address/zone-check
+updates for fixes that aren't meaningfully different from the last
+accepted position, and a `SpeedService`-level fix that ignores
+low-accuracy readings and floors small speed values as GPS noise rather
+than real movement.
+
+### 🐞 Bugs Found & Fixed During Implementation
+- **OSM `subLocality` empty for rural barangays** — confirmed via device
+  logs that `placemarkFromCoordinates()` succeeds but returns an empty
+  `subLocality` for Guiuan-area coordinates; not a plugin bug, OSM simply
+  has no barangay-level boundary tags for this rural municipality.
+  Resolved by resolving barangay locally against seeded polygon data
+  instead of depending on third-party geocoder coverage.
+- **Fallback speed formula amplified GPS jitter** — `SpeedService`'s
+  position-diff fallback divides distance by elapsed time at 250ms
+  polling; a couple meters of ordinary GPS scatter on a stationary
+  device was translating into false 5-20 kph readings. Fixed with an
+  accuracy-based reject plus a raised stationary floor (6 kph).
+  Confirmed root cause via device log showing `pos.speed` and computed
+  fallback kph moving in step with `accuracy` degrading from 3m to 34m.
+- **Marker/address updating on every tick regardless of real movement**
+  — `distanceFilter: 0` meant every GPS fix (including pure noise)
+  triggered a full re-geocode + zone re-check + marker move. Fixed with
+  a 6m stationary-radius gate keyed off the last *accepted* position.
+- **Accuracy filter stalled first-fix display** — an early version of
+  the accuracy gate rejected the very first GPS fix after app launch
+  (which is typically low-accuracy before the chip fully locks),
+  regressing the "instant fetch" feel the app previously had. Fixed by
+  letting the first fix through unconditionally and only applying the
+  accuracy/stationary filters to fixes after `_locationReady` is true.
+- **Silent geocoding failures** — the original `catch (_) {}` around
+  `placemarkFromCoordinates()` swallowed all exceptions with no
+  visibility. Replaced with a logged catch (`[Geocode ERROR]`) to keep
+  future geocoding failures diagnosable instead of failing invisibly.
+
+### ✅ Modified Files
+
+#### `lib/utils/geo_utils.dart`
+- **Added:** `getBarangayForPoint(lat, lng, barangays)` — checks a GPS
+  point against every seeded barangay's `boundary_polygon` using the
+  existing `isPointInPolygon()` ray-casting function; returns the
+  matching `barangay_name`, or `''` if the point falls outside all
+  seeded boundaries
+
+#### `lib/services/firestore_service.dart`
+- **Added:** `getAllBarangays()` — fetches all docs in the `barangays`
+  collection for local point-in-polygon lookups (existing
+  `getBarangaysByMunicipality()` and `getBarangayBoundary()` methods
+  were scoped differently and didn't cover this use case)
+
+#### `lib/services/speed_service.dart`
+- **Added:** Accuracy-based reject in `_tick()` — fixes worse than 15m
+  accuracy are held at `0.0` kph rather than trusted for speed
+  calculation
+- **Updated:** Stationary floor raised from 3.0 → 6.0 kph to absorb
+  GPS-chip-native (`pos.speed`, Doppler-based) noise independent of any
+  position-diff filtering happening elsewhere
+
+#### `lib/screens/rider/map_screen.dart`
+-
+
+**Status:** ✅ COMPLETED — July 25, 2026
+
+### 🎯 What This Phase Achieved:
+UI/UX polish pass on the Rider Map and Dashboard screens. Added a
+Google-Maps-style compass to the map — always visible, needle rotates
+opposite the map's rotation to keep pointing true north, tap triggers a
+smooth animated snap-back (rotation to 0°, zoom to default 15.0, and
+recenter on the rider's actual live GPS position, not just the last
+panned viewport). Configured `flutter_map`'s built-in disk tile cache
+(300MB limit, 1-day freshness override) so previously-seen tiles render
+instantly on weak/unstable connections instead of re-fetching. Map now
+shows the device's last-known GPS fix immediately on screen load instead
+of sitting on a hardcoded default coordinate while waiting for the first
+live fix. Quick Actions (Open/Close Exhaust) converted from two
+independent flat buttons into a true toggle pair driven by real
+`ExhaustProvider` state — whichever button matches the actual exhaust
+state is lit/solid, the other dims, with a press-scale bounce for tap
+feedback. Added a live telemetry card below Quick Actions showing
+real-time speed and a decibel placeholder (same `0.0`-until-hardware
+pattern used in ride session snapshots).
+
+### 🐞 Bugs Found & Fixed During Implementation
+- **`overrideFreshAge` misplaced** — initially passed to `NetworkTileProvider` directly; correct location is inside `BuiltInMapCachingProvider.getOrCreateInstance()`. Caused an `undefined_named_parameter` build error, fixed by moving the argument.
+- **`SingleTickerProviderStateMixin` ticker collision** — `_MapScreenState` already ran one continuous ticker for the GPS pulse-dot animation; adding a second `AnimationController` for the compass-reset animation threw "multiple tickers were created." Fixed by switching to `TickerProviderStateMixin`.
+- **Compass reset landed on stale center** — first version of `_resetNorth()` only animated rotation/zoom around the map's current viewport center, so if the user had panned away from their GPS dot before tapping, it "reset" to the wrong spot. Fixed by also tweening the center toward `_currentLat`/`_currentLng` (the live position) in the same animation.
+- **Duplicate recenter control** — compass was initially placed alongside the existing bottom-right recenter FAB, creating two overlapping circular buttons. Removed the redundant FAB (recenter already lives in the AppBar action) and moved the compass into that freed bottom-right slot.
+
+### ✅ Modified Files
+
+#### `lib/screens/rider/map_screen.dart`
+- **Changed:** `SingleTickerProviderStateMixin` → `TickerProviderStateMixin`
+- **Added:** `_loadLastKnownPosition()` — renders cached GPS fix immediately on init instead of waiting for first live stream event
+- **Added:** Map rotation tracking via `mapController.mapEventStream`
+- **Added:** Compass widget (bottom-right, replaces old recenter FAB) — needle rotates opposite map rotation, always visible
+- **Added:** `_resetNorth()` — animated (350ms, easeOutCubic) combined rotation-to-0 + zoom-to-15.0 + recenter-to-live-position on compass tap
+- **Removed:** Redundant bottom-right recenter `FloatingActionButton` (recenter already available via AppBar action)
+- **Updated:** `TileLayer` — `tileProvider` now uses `NetworkTileProvider` with `BuiltInMapCachingProvider.getOrCreateInstance()`, 300MB cache limit, 1-day `overrideFreshAge`
+
+#### `lib/services/speed_service.dart`
+- **Added:** `currentDb` getter — `0.0` placeholder, same pattern as other dB fields pending IoT hardware
+
+#### `lib/screens/rider/dashboard_screen.dart`
+- **Added import:** `speed_service.dart`
+- **Modified:** `_QuickActionsSection` — Open/Close buttons now pass `isActive` derived from real `exhaustProvider.isOpen` / `isClosed`, not just tap history
+- **Modified:** `_ActionButton` — converted to `StatefulWidget`, added press-scale animation (`AnimatedScale`, 100ms) and lit/dimmed color states based on `isActive`
+- **Added:** `_LiveTelemetryCard` + `_TelemetryStat` — live speed (km/h) and dB placeholder display below Quick Actions, listens to `SpeedService` via `AnimatedBuilder`
+
+### ⚠️ Known Limitations (not yet field-tested)
+- Tile caching improvement has only been confirmed to build and run correctly — not yet tested under actual weak/unstable signal conditions (e.g. airplane-mode-mid-load) or on an actual moving ride
+- Compass rotate gesture and reset-to-north animation confirmed working on-device, but not yet tested during actual motorcycle movement/vibration
+
+---
+
 ## [0.7.4 patch 3] - GPS Geofence Auto-Trigger Validated (Simulated)
 
 **Status:** ✅ COMPLETED — July 10, 2026

@@ -58,6 +58,11 @@ class SpeedService extends ChangeNotifier {
     _lastPosition = position;
   }
 
+  // Positions worse than this accuracy are too noisy to trust for speed —
+  // both pos.speed (Doppler-based) and the position-diff fallback get
+  // unreliable once GPS accuracy degrades (e.g. weak sky view, indoors).
+  static const double _maxTrustedAccuracyMeters = 15.0;
+
   /// Start 1-second polling — call on app start / zone approach
   void startTracking() {
     _timer?.cancel();
@@ -79,6 +84,19 @@ class SpeedService extends ChangeNotifier {
     final pos = _lastPosition;
     if (pos == null) return;
 
+    // Poor-accuracy fix — don't trust it for speed at all, just hold 0.
+    if (pos.accuracy > _maxTrustedAccuracyMeters) {
+      final reading = SpeedReading(
+        kph: 0.0,
+        usedFallback: false,
+        timestamp: DateTime.now(),
+      );
+      _latest = reading;
+      _buffer.add(reading);
+      notifyListeners();
+      return;
+    }
+
     double kph;
     bool usedFallback = false;
 
@@ -93,6 +111,12 @@ class SpeedService extends ChangeNotifier {
 
     // Clamp negatives (GPS noise)
     kph = kph.clamp(0.0, 200.0);
+
+    // GPS naturally scatters even on a stationary device, and pos.speed
+    // (Doppler-based, chip-reported) can show noise independent of any
+    // position-diff filtering elsewhere. Floor anything under this.
+    const stationaryFloorKph = 6.0;
+    if (kph < stationaryFloorKph) kph = 0.0;
 
     final reading = SpeedReading(
       kph: double.parse(kph.toStringAsFixed(1)),
