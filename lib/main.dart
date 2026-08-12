@@ -130,6 +130,7 @@ class AuthWrapper extends StatelessWidget {
                 authProvider.appUser!.uid,
               );
               context.read<RestrictedAreasProvider>().initialize();
+              ClassicBluetoothService.instance.autoConnect();
             });
           }
           return const MainNavigationScreen();

@@ -141,8 +141,23 @@ class _BluetoothConnectionCard extends StatelessWidget {
                     onPressed: () =>
                         context.read<ClassicBluetoothService>().disconnect(),
                   )
+                else if (btService.isConnecting)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 else
-                  const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+                  TextButton.icon(
+                    onPressed: () => context
+                        .read<ClassicBluetoothService>()
+                        .reconnectToLast(),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Retry'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF3B82F6),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -334,6 +349,33 @@ class _QuickActionsSection extends StatelessWidget {
             ),
           ],
         ),
+        if (exhaustProvider.valveError) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFF59E0B)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 18,
+                  color: Color(0xFF92400E),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Last command failed — check Bluetooth connection.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF92400E)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         const _LiveTelemetryCard(),
       ],

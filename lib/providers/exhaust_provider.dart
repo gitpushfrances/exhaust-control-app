@@ -228,7 +228,7 @@ class ExhaustProvider with ChangeNotifier {
     final snap = RideSnapshot(
       type: type,
       speedKph: SpeedService.instance.currentKph,
-      decibelDb: 0.0, // placeholder — IoT will fill this via BT
+      decibelDb: ClassicBluetoothService.instance.latestDb ?? 0.0,
       exhaustState: stateLabel.toLowerCase(),
       zoneId: zoneId,
       zoneName: zoneName,
@@ -280,17 +280,33 @@ class ExhaustProvider with ChangeNotifier {
   }
 
   /// Manually open exhaust (override)
-  void openExhaust() {
+  Future<void> openExhaust() async {
     if (_isAutoMode) setAutoMode(false);
-    setExhaustState(ExhaustState.open);
-    ClassicBluetoothService.instance.send('OPEN');
+    final sent = await ClassicBluetoothService.instance.send('OPEN');
+    _valveError = !sent;
+    if (sent) {
+      setExhaustState(ExhaustState.open);
+    } else {
+      debugPrint(
+        '⚠️ Manual OPEN failed — BT not connected. Valve state NOT updated.',
+      );
+    }
+    notifyListeners();
   }
 
   /// Manually close exhaust (override)
-  void closeExhaust() {
+  Future<void> closeExhaust() async {
     if (_isAutoMode) setAutoMode(false);
-    setExhaustState(ExhaustState.closed);
-    ClassicBluetoothService.instance.send('CLOSE');
+    final sent = await ClassicBluetoothService.instance.send('CLOSE');
+    _valveError = !sent;
+    if (sent) {
+      setExhaustState(ExhaustState.closed);
+    } else {
+      debugPrint(
+        '⚠️ Manual CLOSE failed — BT not connected. Valve state NOT updated.',
+      );
+    }
+    notifyListeners();
   }
 
   /// Start a new trip

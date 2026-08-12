@@ -4,6 +4,107 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 6] - Classic Bluetooth Reliability: Reconnect, Command Verification & BT Pin Remap
+
+**Status:** ✅ COMPLETED — August 12, 2026
+
+### 🎯 What This Phase Achieved:
+Fixed a cluster of related Bluetooth reliability issues surfaced during
+hands-on HC-05 testing: manual Quick Action commands (`openExhaust()` /
+`closeExhaust()`) updated UI state immediately without confirming the
+Arduino actually received the command, silent failed reconnects required
+a full app restart to recover from, and no auto-connect existed on app
+launch (rider had to manually open the connection modal every session).
+Also diagnosed and fixed an intermittent BT disconnect issue traced to
+the HC-05 TX/RX pins sharing address space with noise-prone Arduino
+pins; moved HC-05 wiring from D8/D9 to D2/D3, resolving repeated
+mid-session drops confirmed via Serial Monitor garbage-byte output and
+spurious `setup()` re-runs (brownout resets).
+
+### 🐞 Bugs Found & Fixed During Implementation
+- **Manual commands didn't verify hardware receipt** — `openExhaust()`/
+  `closeExhaust()` called `ClassicBluetoothService.send()` without
+  awaiting the result, so `setExhaustState()` fired unconditionally.
+  If BT was disconnected at tap time, the UI would show OPEN/CLOSED
+  while the Arduino never moved. This mirrored a bug already fixed in
+  `checkRestrictedAreaStatus()` back in patch 3's known limitations —
+  the manual path had the same class of bug and was still unfixed.
+  Fixed by awaiting `send()` and only calling `setExhaustState()` on
+  confirmed success, setting `_valveError` otherwise.
+- **Stuck reconnect state after unexpected drop** — `_connection` was
+  only nulled out on disconnect, never actually disposed. Reconnecting
+  to the same device address afterward would silently fail or hang,
+  requiring a full app restart to recover. Fixed with a proper
+  `_forceCloseConnection()` / disposal path in `_handleDisconnect()`
+  and before new connect attempts.
+- **No connect retry or backoff** — a single failed `toAddress()` call
+  gave up immediately with no visibility into why. Added a 3-attempt
+  retry loop (800ms delay between attempts, 8s timeout per attempt)
+  with `debugPrint` logging of each failure reason.
+- **Garbage bytes / spurious resets on HC-05 D8/D9 wiring** — confirmed
+  via Serial Monitor showing raw mojibake output interleaved with
+  reprinted `"Arduino ready..."` boot messages, indicating actual
+  Arduino resets (not just a BT-level drop). Root-caused to the HC-05
+  TX/RX pins; moved to D2/D3, confirmed stable across repeated
+  OPEN/CLOSE cycles afterward.
+
+### ✅ Modified Files
+
+#### `lib/services/classic_bluetooth_service.dart`
+- **Added field:** `_lastDeviceAddress` — tracks the most recently
+  connected device for reconnect purposes
+- **Modified:** `connect()` — force-closes any stale connection first,
+  retries up to 3 times with 800ms backoff and an 8s per-attempt
+  timeout, logs each failure via `debugPrint`
+- **Added:** `_forceCloseConnection()` — properly finishes/disposes the
+  native connection object instead of just nulling the reference
+- **Added:** `autoConnect({nameContains = 'HC-05'})` — scans paired
+  devices for a name match and connects automatically
+- **Added:** `reconnectToLast()` — reconnects to `_lastDeviceAddress`
+  without requiring the user to reopen the device picker modal
+- **Modified:** `_handleDisconnect()` — now disposes `_connection`
+  before nulling it, preventing the stuck-socket restart requirement
+
+#### `lib/providers/exhaust_provider.dart`
+- **Modified:** `openExhaust()` / `closeExhaust()` — converted to
+  `Future<void>`, now await `send()`'s result and only update
+  `ExhaustState` on confirmed success; sets `_valveError` on failure,
+  matching the pattern already used in `checkRestrictedAreaStatus()`
+
+#### `lib/main.dart`
+- **Added:** `ClassicBluetoothService.instance.autoConnect()` call
+  inside the existing rider `postFrameCallback` block, alongside
+  `setRiderUid()` and `RestrictedAreasProvider.initialize()`
+
+#### `lib/screens/rider/dashboard_screen.dart`
+- **Modified:** `_BluetoothConnectionCard` — added a connecting-state
+  spinner and a manual "Retry" button (`reconnectToLast()`) shown when
+  disconnected and not currently connecting
+- **Added:** Inline warning banner in `_QuickActionsSection`, shown
+  when `exhaustProvider.valveError` is true, surfacing failed
+  commands instead of failing silently
+
+#### Arduino sketch (`exhaust_valve/exhaust_valve.ino`)
+- **Changed:** `SoftwareSerial` pins — HC-05 TX/RX moved from D8/D9 to
+  D2/D3 to resolve intermittent disconnects and garbage-byte reads
+- **Unchanged:** L298N `IN1`/`IN2` remain on D7/D6; OPEN = CW, CLOSE = CCW
+
+### ⚠️ Known Limitations (documented, not fixed this session)
+- `reconnectToLast()` has nothing to reconnect to on a completely fresh
+  install before any successful connection this session — relies on
+  `autoConnect()` to cover that first-time case instead
+- BT reliability fixes not yet validated with the L298N motor actually
+  running — motor current draw sagging the shared power rail was
+  flagged as a likely contributor to drops and is still untested as a
+  standalone variable now that the pin remap is in place
+- No decoupling capacitor added yet near HC-05 VCC/GND, still a
+  candidate fix if drops resume once the motor is back in the loop
+- `BluetoothProvider` (BLE, `flutter_blue_plus`) remains registered in
+  `main.dart`'s `MultiProvider` but is unused for HC-05 (Classic/SPP);
+  flagged as dead weight, not removed this session
+
+---
+
 ## [0.7.4 patch 5] - Barangay-Aware Live Address + GPS Jitter/Accuracy Filtering
 
 **Status:** ✅ COMPLETED — August 4, 2026
@@ -79,7 +180,41 @@ than real movement.
   position-diff filtering happening elsewhere
 
 #### `lib/screens/rider/map_screen.dart`
--
+- **Added import:** `firestore_service.dart`, `geo_utils.dart`
+- **Added fields:** `_allBarangays`, `_lastAcceptedLat`/`_lastAcceptedLng`,
+  `_stationaryRadiusMeters` (6.0)
+- **Added:** `_loadBarangays()` — fetches all seeded barangay polygons
+  once on `initState()`
+- **Modified:** `_onPositionUpdate()` — added accuracy-based reject
+  (skipped for the very first fix), 6m stationary-radius gate, barangay
+  resolution via `getBarangayForPoint()` with OSM `subLocality` fallback,
+  and logged geocoding error handling
+- **Modified:** Address string now composed as street → barangay
+  (resolved or OSM fallback) → municipality → province → region
+
+### ⚠️ Known Limitations (documented, not fixed this session)
+- Barangay resolution depends on the 16 hand-traced polygon boundaries
+  seeded in Phase 0.7.3 patch 1 — confirmed via device testing that at
+  least one real-world coordinate near central Guiuan falls in a gap
+  between seeded polygons and returns no barangay match (falls back to
+  OSM, which is also typically empty for this area). Polygon coverage
+  is accurate within traced wards but not guaranteed gap-free at edges.
+- OSM/Play Services reverse geocoding remains unreliable on the test
+  device — `GoogleApiManager: SecurityException: Unknown calling package
+  name 'com.google.android.gms'` recurs throughout logs, likely tied to
+  this being a Transsion/Infinix (MediaTek) device with nonstandard
+  Play Services behavior. Not blocking (app now resolves barangay
+  locally regardless), but flagged in case other Play Services-dependent
+  features surface issues on similar devices.
+- 20m accuracy threshold and 6m stationary radius are initial values,
+  not yet tuned against a real outdoor ride — worth revisiting once
+  field-tested with actual motorcycle movement rather than stationary
+  bench testing.
+- Investigated PSGC (Philippine Statistics Authority) official barangay
+  shapefiles as a potential free, higher-accuracy replacement for the
+  hand-traced polygons — confirmed availability via
+  `github.com/altcoder/philippines-psgc-shapefiles`, not yet imported.
+  Deferred; current polygons considered sufficient for now.
 
 **Status:** ✅ COMPLETED — July 25, 2026
 
@@ -455,10 +590,12 @@ Expanded from single-role rider app to full 3-role system. Adds Admin screens (d
 | 0.7.3 patch 1 | Barangay Polygon Expansion — 16 barangays seeded | ✅ Complete | Mar 23, 2026 |
 | **0.7.4 patch 1** | **Speed Tracking + Ride Session Logging + Speed Monitor Dev Tool** | **✅ Complete** | **May 10, 2026** |
 | **0.7.4 patch 2** | **Admin Reports Screen + Nav Tab + Code Cleanup (pending)** | **✅ Complete** | **Jun 11, 2026** |
+| 0.7.4 patch 5 | Barangay-Aware Live Address + GPS Jitter/Accuracy Filtering | ✅ Complete | Aug 4, 2026 |
+| **0.7.4 patch 6** | **Classic Bluetooth Reliability: Reconnect, Command Verification & BT Pin Remap** | **✅ Complete** | **Aug 12, 2026** |
 | 0.7.4 | Second Relay + Solder + CW/CCW Direction Control | 🟡 Next (hardware) | TBD |
 | 0.8.0 | Core HC-105 Automation (geofence → relay → motor) | ⏳ Pending | TBD |
 
 ---
 
 **Maintained by:** Development Team
-**Last Updated:** May 10, 2026
+**Last Updated:** August 12, 2026
