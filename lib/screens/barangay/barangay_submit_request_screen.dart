@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../utils/geo_utils.dart';
+import '../../models/restricted_area.dart';
 
 class BarangaySubmitRequestScreen extends StatefulWidget {
   const BarangaySubmitRequestScreen({super.key});
@@ -35,6 +36,7 @@ class _BarangaySubmitRequestScreenState
   List<LatLng> _boundaryLatLng = [];
   bool _isLoadingBoundary = true;
   String _barangayName = '';
+  List<RestrictedArea> _existingAreas = [];
 
   StreamSubscription<Position>? _positionStream;
   double _currentLat = 10.3157;
@@ -73,6 +75,13 @@ class _BarangaySubmitRequestScreenState
     final centerLat = (data['center_lat'] as num).toDouble();
     final centerLng = (data['center_lng'] as num).toDouble();
     _mapController.move(LatLng(centerLat, centerLng), 14);
+
+    fs.streamApprovedAreasForBarangay(official.primaryBarangayId!).listen((
+      areas,
+    ) {
+      if (!mounted) return;
+      setState(() => _existingAreas = areas);
+    });
   }
 
   void _startLocationStream() {
@@ -370,6 +379,21 @@ class _BarangaySubmitRequestScreenState
     final official = context.read<AuthProvider>().appUser;
     final fs = FirestoreService();
 
+    final conflict = await fs.findOverlappingZone(
+      barangayId: official?.primaryBarangayId ?? '',
+      latitude: _selectedPoint!.latitude,
+      longitude: _selectedPoint!.longitude,
+      radius: _radius,
+    );
+
+    if (conflict != null) {
+      setState(() => _isSaving = false);
+      _showError(
+        'This overlaps an existing zone: "$conflict". Choose a different location or radius.',
+      );
+      return;
+    }
+
     final success = await fs.submitZoneRequest(
       name: name,
       latitude: _selectedPoint!.latitude,
@@ -500,6 +524,23 @@ class _BarangaySubmitRequestScreenState
                             borderStrokeWidth: 2.5,
                           ),
                         ],
+                      ),
+                    if (_existingAreas.isNotEmpty)
+                      CircleLayer(
+                        circles: _existingAreas
+                            .map(
+                              (a) => CircleMarker(
+                                point: LatLng(a.latitude, a.longitude),
+                                radius: a.radius,
+                                useRadiusInMeter: true,
+                                color: const Color(
+                                  0xFF10B981,
+                                ).withValues(alpha: 0.15),
+                                borderColor: const Color(0xFF10B981),
+                                borderStrokeWidth: 2,
+                              ),
+                            )
+                            .toList(),
                       ),
                     if (_selectedPoint != null) ...[
                       CircleLayer(

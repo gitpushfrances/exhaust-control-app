@@ -18,6 +18,18 @@ class ClassicBluetoothService extends ChangeNotifier {
   double? _latestDb;
   double? get latestDb => _latestDb;
 
+  // Rolling dB buffer for the current phase (approach/inside/exiting).
+  // Captured via averageDb then cleared at each zone-event boundary —
+  // mirrors SpeedService's buffer/averageKph pattern.
+  final List<double> _dbBuffer = [];
+
+  double get averageDb {
+    if (_dbBuffer.isEmpty) return 0.0;
+    return _dbBuffer.reduce((a, b) => a + b) / _dbBuffer.length;
+  }
+
+  void clearDbBuffer() => _dbBuffer.clear();
+
   Completer<bool>? _pendingAck;
   String? _pendingAckCommand;
 
@@ -123,6 +135,23 @@ class ClassicBluetoothService extends ChangeNotifier {
   /// Sends a command and waits for the matching ACK from the Arduino.
   /// Returns true ONLY if the ACK was actually received — not just that
   /// the write succeeded. Fixes the previous silent-false-positive bug.
+  /// Fire-and-forget send — no ACK expected. Used for zone-status signals
+  /// (ZENTER/ZPING/ZEXIT), which are informational only and shouldn't
+  /// block on a reply that the Arduino never sends. Returns true if the
+  /// write was attempted while connected (not delivery confirmation —
+  /// just "we were connected and the write didn't throw").
+  Future<bool> sendRaw(String command) async {
+    if (!_isConnected || _connection == null) return false;
+    try {
+      _connection!.output.add(utf8.encode('$command\r\n'));
+      await _connection!.output.allSent;
+      return true;
+    } catch (_) {
+      _handleDisconnect();
+      return false;
+    }
+  }
+
   Future<bool> send(
     String command, {
     Duration timeout = const Duration(seconds: 2),
@@ -162,6 +191,7 @@ class ClassicBluetoothService extends ChangeNotifier {
       final value = double.tryParse(line.substring(3));
       if (value != null) {
         _latestDb = value;
+        _dbBuffer.add(value);
         notifyListeners();
       }
       return;

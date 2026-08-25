@@ -10,7 +10,11 @@ class BarangayHomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final official = context.watch<AuthProvider>().appUser;
     final fs = FirestoreService();
-    final uid = official?.uid ?? '';
+    final barangayId = official?.primaryBarangayId ?? '';
+    debugPrint(
+      '🏠 [OFFICIAL-HOME] rebuild — uid=${official?.uid} '
+      'barangayId="$barangayId" barangayName=${official?.barangayName}',
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -106,7 +110,7 @@ class BarangayHomeScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
             const Text(
-              'My Request Summary',
+              'Barangay Request Summary',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -116,7 +120,7 @@ class BarangayHomeScreen extends StatelessWidget {
             const SizedBox(height: 12),
 
             StreamBuilder<Map<String, int>>(
-              stream: fs.streamMyRequestStats(uid),
+              stream: fs.streamRequestStatsForBarangay(barangayId),
               builder: (context, snap) {
                 final stats =
                     snap.data ??
@@ -170,7 +174,7 @@ class BarangayHomeScreen extends StatelessWidget {
             const SizedBox(height: 12),
 
             StreamBuilder<List<Map<String, dynamic>>>(
-              stream: fs.streamMyRequests(uid),
+              stream: fs.streamRequestsForBarangay(barangayId),
               builder: (context, snap) {
                 final items = (snap.data ?? []).take(3).toList();
                 if (items.isEmpty) {

@@ -14,13 +14,19 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
 
+  String? _loadedUid; // guards against duplicate concurrent loads for the
+  // same uid when signIn() and the authStateChanges listener both fire
+
   AuthProvider(this._authService) {
     _authService.authStateChanges.listen((user) async {
       _user = user;
       if (user != null) {
-        await _loadAppUser(user.uid);
+        if (_loadedUid != user.uid || _appUser == null) {
+          await _loadAppUser(user.uid);
+        }
       } else {
         _appUser = null;
+        _loadedUid = null;
       }
       _isLoading = false;
       notifyListeners();
@@ -35,6 +41,7 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> _loadAppUser(String uid) async {
     _appUser = await _firestoreService.getUser(uid);
+    _loadedUid = uid;
   }
 
   Future<void> checkAuthStatus() async {
@@ -44,7 +51,9 @@ class AuthProvider with ChangeNotifier {
     final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
     if (isLoggedIn && _authService.currentUser != null) {
       _user = _authService.currentUser;
-      await _loadAppUser(_user!.uid);
+      if (_loadedUid != _user!.uid || _appUser == null) {
+        await _loadAppUser(_user!.uid);
+      }
     }
     _isLoading = false;
     notifyListeners();
@@ -59,9 +68,15 @@ class AuthProvider with ChangeNotifier {
         email: email,
         password: password,
       );
-      _user = credential?.user;
-      if (_user != null) {
-        await _loadAppUser(_user!.uid);
+      final signedInUser = credential?.user;
+      if (signedInUser != null) {
+        // Load directly here instead of relying on the authStateChanges
+        // listener to also fire and race this same load — both used to
+        // call _loadAppUser + notifyListeners independently, which could
+        // interleave and briefly expose a half-loaded _appUser to any
+        // widget watching this provider.
+        _user = signedInUser;
+        await _loadAppUser(signedInUser.uid);
         if (_appUser != null && !_appUser!.isActive) {
           await _authService.signOut();
           _user = null;
@@ -110,6 +125,7 @@ class AuthProvider with ChangeNotifier {
         );
         await _firestoreService.createUserDoc(newUser);
         _appUser = newUser;
+        _loadedUid = newUser.uid;
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);

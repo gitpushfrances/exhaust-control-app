@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/firestore_service.dart';
 import '../../models/ride_session.dart';
+import '../../models/restricted_area.dart';
 
 class AdminReportsScreen extends StatefulWidget {
   const AdminReportsScreen({super.key});
@@ -23,6 +24,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
 
   Future<void> _loadBarangays() async {
     final list = await _fs.getBarangaysByMunicipality('Guiuan');
+    debugPrint('🏘️ [ADMIN] Loaded ${list.length} barangays for Guiuan');
     if (mounted) {
       setState(() {
         _barangays = list;
@@ -188,6 +190,8 @@ class _BarangayListTile extends StatelessWidget {
 }
 
 // ─── Barangay Report Detail Screen ───────────────────────────
+// Now shows the barangay's active zones as tabs (plus an "All Zones"
+// combined tab), instead of one flat list mixing every zone together.
 
 class _BarangayReportScreen extends StatefulWidget {
   final Map<String, dynamic> barangay;
@@ -206,22 +210,6 @@ class _BarangayReportScreenState extends State<_BarangayReportScreen> {
   String get _barangayName =>
       widget.barangay['name'] ?? widget.barangay['barangay_name'] ?? 'Unnamed';
   String get _municipality => widget.barangay['municipality_name'] ?? '';
-
-  List<RideSession> _applyFilter(List<RideSession> sessions) {
-    final now = DateTime.now();
-    if (_filter == 'today') {
-      return sessions.where((s) {
-        return s.startedAt.year == now.year &&
-            s.startedAt.month == now.month &&
-            s.startedAt.day == now.day;
-      }).toList();
-    } else if (_filter == 'month') {
-      return sessions.where((s) {
-        return s.startedAt.year == now.year && s.startedAt.month == now.month;
-      }).toList();
-    }
-    return sessions;
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -261,84 +249,269 @@ class _BarangayReportScreenState extends State<_BarangayReportScreen> {
           ],
         ),
       ),
-      body: StreamBuilder<List<RideSession>>(
-        stream: _fs.streamRideSessions(_barangayId),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
-            );
-          }
-
-          final all = snap.data ?? [];
-          final filtered = _applyFilter(all);
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Official info
                 _OfficialInfoCard(
                   fs: _fs,
                   barangayId: _barangayId,
                   barangayName: _barangayName,
                   municipality: _municipality,
                 ),
-
-                const SizedBox(height: 20),
-
-                // Filter chips
+                const SizedBox(height: 16),
                 _FilterChips(
                   selected: _filter,
                   onChanged: (val) => setState(() => _filter = val),
                 ),
-
-                const SizedBox(height: 20),
-
-                // Summary cards
-                _SummaryCards(sessions: filtered),
-
-                const SizedBox(height: 20),
-
-                // Sessions list
-                const Text(
-                  'Zone Pass Records',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF111827),
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                if (filtered.isEmpty)
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFE5E7EB)),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'No ride sessions for this period.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF9CA3AF),
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  ...filtered.map((s) => _SessionCard(session: s)),
-
-                const SizedBox(height: 24),
               ],
             ),
-          );
-        },
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: StreamBuilder<List<RestrictedArea>>(
+              stream: _fs.streamApprovedAreasForBarangay(_barangayId),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  debugPrint(
+                    '⏳ [ADMIN] Waiting for zones — barangayId="$_barangayId"',
+                  );
+                  return const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+                  );
+                }
+                final areas = snap.data ?? [];
+                debugPrint(
+                  '📍 [ADMIN] barangayId="$_barangayId" → ${areas.length} active zones: '
+                  '${areas.map((a) => a.name).join(", ")}',
+                );
+                return _ZoneReportTabs(
+                  barangayId: _barangayId,
+                  areas: areas,
+                  filter: _filter,
+                );
+              },
+            ),
+          ),
+        ],
       ),
+    );
+  }
+}
+
+// ─── Zone tab bar — "All Zones" + one tab per active zone ─────────────
+
+class _ZoneReportTabs extends StatefulWidget {
+  final String barangayId;
+  final List<RestrictedArea> areas;
+  final String filter;
+
+  const _ZoneReportTabs({
+    required this.barangayId,
+    required this.areas,
+    required this.filter,
+  });
+
+  @override
+  State<_ZoneReportTabs> createState() => _ZoneReportTabsState();
+}
+
+class _ZoneReportTabsState extends State<_ZoneReportTabs>
+    with TickerProviderStateMixin {
+  late TabController _tabController;
+
+  int get _tabCount => widget.areas.length + 1; // +1 for "All Zones"
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: _tabCount, vsync: this);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ZoneReportTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Active zones stream is live — rebuild the controller if the zone
+    // count changes so tabs stay in sync without crashing on length
+    // mismatch.
+    if (oldWidget.areas.length != widget.areas.length) {
+      final keepIndex = _tabController.index < _tabCount
+          ? _tabController.index
+          : 0;
+      _tabController.dispose();
+      _tabController = TabController(
+        length: _tabCount,
+        vsync: this,
+        initialIndex: keepIndex,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          color: Colors.white,
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            labelColor: const Color(0xFF3B82F6),
+            unselectedLabelColor: const Color(0xFF9CA3AF),
+            indicatorColor: const Color(0xFF3B82F6),
+            labelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+            tabs: [
+              const Tab(text: 'All Zones'),
+              ...widget.areas.map(
+                (a) => Tab(text: a.name.isEmpty ? 'Zone' : a.name),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _ZoneReportView(
+                zoneId: null,
+                zoneName: 'All Zones',
+                barangayId: widget.barangayId,
+                filter: widget.filter,
+              ),
+              ...widget.areas.map(
+                (a) => _ZoneReportView(
+                  zoneId: a.id,
+                  zoneName: a.name,
+                  barangayId: widget.barangayId,
+                  filter: widget.filter,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─── Per-zone (or all-zones) report content ────────────────────────────
+
+class _ZoneReportView extends StatelessWidget {
+  final String? zoneId; // null = "All Zones" combined view
+  final String zoneName;
+  final String barangayId;
+  final String filter;
+
+  const _ZoneReportView({
+    required this.zoneId,
+    required this.zoneName,
+    required this.barangayId,
+    required this.filter,
+  });
+
+  List<RideSession> _applyFilter(List<RideSession> sessions) {
+    final now = DateTime.now();
+    if (filter == 'today') {
+      return sessions.where((s) {
+        return s.startedAt.year == now.year &&
+            s.startedAt.month == now.month &&
+            s.startedAt.day == now.day;
+      }).toList();
+    } else if (filter == 'month') {
+      return sessions.where((s) {
+        return s.startedAt.year == now.year && s.startedAt.month == now.month;
+      }).toList();
+    }
+    return sessions;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = FirestoreService();
+    final stream = zoneId == null
+        ? fs.streamRideSessions(barangayId)
+        : fs.streamRideSessionsForZone(zoneId!);
+
+    return StreamBuilder<List<RideSession>>(
+      stream: stream,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          debugPrint(
+            '⏳ [ADMIN] Waiting for sessions — zone="$zoneName" '
+            '(zoneId=${zoneId ?? "ALL"}, barangayId=$barangayId)',
+          );
+          return const Center(
+            child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
+          );
+        }
+
+        if (snap.hasError) {
+          debugPrint(
+            '❌ [ADMIN] Session stream error for "$zoneName": ${snap.error}',
+          );
+        }
+
+        final all = snap.data ?? [];
+        final filtered = _applyFilter(all);
+        debugPrint(
+          '📊 [ADMIN] zone="$zoneName" filter="$filter" → '
+          '${all.length} total sessions, ${filtered.length} after filter',
+        );
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SummaryCards(sessions: filtered),
+              const SizedBox(height: 20),
+              const Text(
+                'Zone Pass Records',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (filtered.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'No ride sessions for this period.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+                    ),
+                  ),
+                )
+              else
+                ...filtered.map((s) => _SessionCard(session: s)),
+              const SizedBox(height: 24),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -525,6 +698,10 @@ class _SummaryCards extends StatelessWidget {
     final avgDbReduced = count == 0
         ? 0.0
         : sessions.fold(0.0, (a, b) => a + b.decibelReduced) / count;
+    debugPrint(
+      '🧮 [ADMIN] Summary — count=$count avgSpeed=${avgSpeed.toStringAsFixed(1)}km/h '
+      'avgDbBefore=${avgDbBefore.toStringAsFixed(1)}dB avgDbReduced=${avgDbReduced.toStringAsFixed(1)}dB',
+    );
 
     return GridView.count(
       crossAxisCount: 2,
@@ -769,6 +946,10 @@ class _SessionCard extends StatelessWidget {
                   snapshot: exit,
                   color: const Color(0xFF10B981),
                 ),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                const SizedBox(height: 12),
+                _PhaseComparisonRow(session: session),
               ],
             ),
           ),
@@ -874,6 +1055,137 @@ class _DataChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Phase Comparison — proves dB drops inside the zone ───────
+
+class _PhaseComparisonRow extends StatelessWidget {
+  final RideSession session;
+  const _PhaseComparisonRow({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final reducedVsApproach =
+        session.decibelAvgApproach - session.decibelAvgInside;
+    final proved =
+        session.decibelAvgApproach > 0 &&
+        session.decibelAvgInside > 0 &&
+        reducedVsApproach > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Phase Averages',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _PhaseChip(
+              label: 'Approach',
+              db: session.decibelAvgApproach,
+              speed: session.speedAvgApproach,
+              color: const Color(0xFF6366F1),
+            ),
+            const SizedBox(width: 8),
+            _PhaseChip(
+              label: 'Inside',
+              db: session.decibelAvgInside,
+              speed: session.speedAvgInside,
+              color: const Color(0xFFEF4444),
+            ),
+            const SizedBox(width: 8),
+            _PhaseChip(
+              label: 'Exiting',
+              db: session.decibelAvgExiting,
+              speed: session.speedAvgExiting,
+              color: const Color(0xFF10B981),
+            ),
+          ],
+        ),
+        if (proved) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.check_circle,
+                size: 14,
+                color: Color(0xFF10B981),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Confirmed ${reducedVsApproach.toStringAsFixed(1)} dB reduction inside zone',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PhaseChip extends StatelessWidget {
+  final String label;
+  final double db;
+  final double speed;
+  final Color color;
+
+  const _PhaseChip({
+    required this.label,
+    required this.db,
+    required this.speed,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              db > 0 ? '${db.toStringAsFixed(1)} dB' : '— dB',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827),
+              ),
+            ),
+            Text(
+              speed > 0 ? '${speed.toStringAsFixed(1)} km/h' : '— km/h',
+              style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
+            ),
+          ],
+        ),
       ),
     );
   }

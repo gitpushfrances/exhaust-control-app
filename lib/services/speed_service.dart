@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'classic_bluetooth_service.dart';
 
 /// One speed reading with timestamp and source info
 class SpeedReading {
@@ -48,10 +49,8 @@ class SpeedService extends ChangeNotifier {
 
   double get currentKph => _latest?.kph ?? 0.0;
 
-  // Placeholder until the IoT decibel mic arrives — same pattern as
-  // decibelDb: 0.0 in exhaust_provider.dart. Swap this single getter to
-  // read the live BT decibel value once hardware is wired.
-  double get currentDb => 0.0;
+  // Live dB reading streamed from the Arduino over Bluetooth.
+  double get currentDb => ClassicBluetoothService.instance.latestDb ?? 0.0;
 
   /// Call this every time geolocator gives a new position (from map_screen)
   void onPositionUpdate(Position position) {
@@ -78,6 +77,16 @@ class SpeedService extends ChangeNotifier {
   /// Clear buffer for a new zone session
   void clearBuffer() {
     _buffer.clear();
+  }
+
+  /// Reads the current phase average, then clears the buffer so the next
+  /// phase starts clean. Call this at the same zone-event boundaries used
+  /// for ClassicBluetoothService.averageDb, so speed and dB line up
+  /// phase-for-phase (approach / inside / exiting).
+  double captureAndClear() {
+    final avg = averageKph;
+    clearBuffer();
+    return avg;
   }
 
   void _tick() {

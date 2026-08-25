@@ -21,6 +21,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - 📋 **Ride Session Logging:** 3-snapshot logging per zone pass (approach, entry, exit) stored in Firestore `ride_sessions` collection
 - 📉 **Decibel Reduction Reporting:** dB before/after/reduced per session — placeholder until IoT sensor hardware arrives
 - 🔧 **Dev Tools:** HC-05 hardware test + live Speed Monitor — accessible exclusively to Super Admin via profile settings
+- 📍 **Barangay-Aware Address Resolution:** Live location resolves barangay locally against seeded polygon boundaries rather than depending solely on OSM's often-empty rural barangay data
 
 ---
 
@@ -42,6 +43,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 | DC Motor Spin Test | 100% | Motor spins/stops via relay from Flutter app ✅ |
 | Barangay Polygon Seeding | 100% | 16 barangays seeded ✅ |
 | Rider Map/Dashboard UX Polish | 100% | Compass w/ animated north-reset, tile caching, Quick Actions toggle, live telemetry ✅ — not yet field-tested on weak signal / real ride |
+| Barangay-Aware Address + GPS Jitter Fix | 100% | Local polygon-based barangay resolution, accuracy/stationary filtering ✅ — not yet field-tested outdoors on real ride |
 | IoT Decibel Integration | 0% | Hardware pending — dB fields are 0.0 placeholders |
 | Hardware Prototype (CW/CCW) | 0% | Needs second relay + soldering |
 | Phase 8 HC-05 Automation | 0% | Unblocked — ready to wire |
@@ -63,6 +65,7 @@ A Flutter mobile application for controlling motorcycle exhaust valves via Bluet
 - [x] Last-known-position fast render — map centers on cached GPS fix immediately instead of a hardcoded default while waiting for the first live fix
 - [x] Quick Actions — Open/Close Exhaust now a true toggle pair reflecting real exhaust state (lit/dimmed), with press-scale tap feedback
 - [x] Live telemetry card — real-time speed + dB placeholder below Quick Actions
+- [x] Barangay-aware live address — resolves barangay from seeded polygon boundaries with OSM fallback; GPS jitter filtered via accuracy rejection + 6m stationary gate
 - [x] BLE scanning and connection
 - [x] GPS tracking every 250ms with reverse geocoding
 - [x] Restricted area detection on every GPS tick (Haversine)
@@ -506,6 +509,8 @@ void loop() {
 **GPS Mock Testing:** Lockito (simulates GPS routes through barangay zones)
 
 ### ✅ Passing
+- Barangay resolution via seeded polygons — confirmed correct within traced ward boundaries; confirmed OSM fallback fires (empty) outside them
+- GPS jitter/accuracy filtering — confirmed stationary device holds flat marker + 0 kph speed after fix, confirmed real movement still registers past the 6m gate
 - Login/signup + role routing (all 3 roles)
 - Full submit → approve → rider map flow end-to-end
 - Notification delivery, multi-select, swipe-delete, unread badge
@@ -522,6 +527,8 @@ void loop() {
 - Live telemetry card — speed display confirmed updating in real time
 
 ### ⏳ Pending
+- Barangay polygon coverage gaps — at least one real-world test point near central Guiuan falls outside all 16 seeded boundaries; needs polygon boundary refinement or PSGC shapefile import
+- Field validation of accuracy/stationary thresholds (20m / 6m) during actual outdoor motorcycle movement, not just stationary bench testing
 - CW/CCW motor direction (needs second relay)
 - Physical valve prototype rotation test
 - Geofence → motor rotation end-to-end
@@ -546,6 +553,6 @@ Created for educational purposes as part of a capstone project.
 
 ---
 
-**Last Updated:** July 25, 2026
-**Version:** 0.7.4 patch 4
-**Status:** Active Development — Rider map/dashboard UX polish complete (compass, tile caching, Quick Actions toggle, live telemetry); pending field validation on weak signal + real ride, second relay + decibel mic hardware next
+**Last Updated:** August 4, 2026
+**Version:** 0.7.4 patch 5
+**Status:** Active Development — Barangay-aware live address + GPS jitter/accuracy filtering complete; pending field validation on real ride, polygon coverage gap needs attention, second relay + decibel mic hardware next

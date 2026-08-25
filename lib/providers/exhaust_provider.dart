@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../services/classic_bluetooth_service.dart';
 import '../services/speed_service.dart';
 import '../services/firestore_service.dart';
 import '../models/ride_session.dart';
 import '../models/restricted_area.dart';
+import '../utils/geo_utils.dart';
 
 /// Exhaust State enum
 enum ExhaustState {
@@ -38,6 +40,28 @@ class ExhaustProvider with ChangeNotifier {
   final List<RideSnapshot> _sessionSnapshots = [];
   bool _approachSnapshotTaken = false;
   static const double _approachRadiusBuffer = 50.0; // meters before zone edge
+
+  // Exit trailing window — mirrors the approach buffer on the way out,
+  // so "exiting" is a real phase with a start and end, not an instant.
+  RestrictedArea? _exitingZone;
+  bool _awaitingExitWindow = false;
+  String? _pendingCloseSessionId;
+  Timer? _exitWindowTimeoutTimer;
+  static const Duration _exitWindowMaxWait = Duration(seconds: 20);
+
+  // Periodic ZPING while inside a zone — heartbeat for the Arduino
+  // watchdog and a live "still connected" signal on the Serial Monitor.
+  Timer? _zonePingTimer;
+  static const Duration _zonePingInterval = Duration(seconds: 1);
+
+  // Phase-windowed averages — captured then buffer-cleared at each
+  // zone-event boundary (entry / exit-trigger / exit-window-cleared).
+  double _avgDbApproach = 0.0;
+  double _avgDbInside = 0.0;
+  double _avgDbExiting = 0.0;
+  double _avgSpeedApproach = 0.0;
+  double _avgSpeedInside = 0.0;
+  double _avgSpeedExiting = 0.0;
 
   // Getters
   ExhaustState get currentState => _currentState;
@@ -132,8 +156,23 @@ class ExhaustProvider with ChangeNotifier {
     _longitude = lng;
     _currentLocation = locationName;
 
-    // Start speed tracking on first location fix
     SpeedService.instance.startTracking();
+
+    // Exit trailing window — keep accumulating speed/dB for the zone
+    // just exited until the rider clears the same buffer distance used
+    // for approach, then finalize the "exiting" averages and actually
+    // close the Firestore session.
+    if (_awaitingExitWindow && _exitingZone != null) {
+      final distFromExitedZone = haversineMeters(
+        lat,
+        lng,
+        _exitingZone!.latitude,
+        _exitingZone!.longitude,
+      );
+      if (distFromExitedZone >= _exitingZone!.radius + _approachRadiusBuffer) {
+        _finalizeExitWindow();
+      }
+    }
 
     // Approach detection — 50m outside zone radius
     if (!_isInRestrictedArea &&
@@ -169,16 +208,27 @@ class ExhaustProvider with ChangeNotifier {
 
     if (_isInRestrictedArea != oldValue && _isAutoMode) {
       if (_isInRestrictedArea) {
-        // Zone entry
-        final sent = await ClassicBluetoothService.instance.send('CLOSE');
+        // Zone entry — capture the approach-phase averages before
+        // clearing both buffers so the "inside" phase starts clean.
+        _avgDbApproach = ClassicBluetoothService.instance.averageDb;
+        ClassicBluetoothService.instance.clearDbBuffer();
+        _avgSpeedApproach = SpeedService.instance.captureAndClear();
+
+        // ZENTER is the sole trigger for the 45° close rotation now —
+        // CLOSE/OPEN stay reserved for the manual override buttons only.
+        final sent = await ClassicBluetoothService.instance.sendRaw('ZENTER');
         _valveError = !sent;
 
         if (sent) {
           setExhaustState(ExhaustState.closed);
           _autoClosures++;
+          _zonePingTimer?.cancel();
+          _zonePingTimer = Timer.periodic(_zonePingInterval, (_) {
+            ClassicBluetoothService.instance.sendRaw('ZPING');
+          });
         } else {
           debugPrint(
-            '⚠️ CLOSE failed — BT not connected. Valve state NOT updated.',
+            '⚠️ ZENTER failed — BT not connected. Valve state NOT updated.',
           );
         }
 
@@ -195,11 +245,22 @@ class ExhaustProvider with ChangeNotifier {
           _activeZoneId ?? '',
           _activeZoneName ?? '',
         );
-        // Only log a session if the command actually reached hardware
-        if (sent) _startSession();
+        // Log the session regardless of BT status — speed/zone data is
+        // still valid even if the valve command failed to reach hardware.
+        _startSession();
       } else {
-        // Zone exit
-        final sent = await ClassicBluetoothService.instance.send('OPEN');
+        // Zone exit — capture the "inside" averages, then start the
+        // exit trailing window instead of closing the session right away.
+        _avgDbInside = ClassicBluetoothService.instance.averageDb;
+        ClassicBluetoothService.instance.clearDbBuffer();
+        _avgSpeedInside = SpeedService.instance.captureAndClear();
+
+        _zonePingTimer?.cancel();
+        _zonePingTimer = null;
+
+        // ZEXIT is the sole trigger for the 45° open-back rotation now —
+        // CLOSE/OPEN stay reserved for the manual override buttons only.
+        final sent = await ClassicBluetoothService.instance.sendRaw('ZEXIT');
         _valveError = !sent;
 
         _takeSnapshot(
@@ -212,12 +273,26 @@ class ExhaustProvider with ChangeNotifier {
           setExhaustState(ExhaustState.open);
         } else {
           debugPrint(
-            '⚠️ OPEN failed — BT not connected. Valve state NOT updated.',
+            '⚠️ ZEXIT failed — BT not connected. Valve state NOT updated.',
           );
         }
 
         _approachSnapshotTaken = false;
-        _closeSession();
+
+        // Capture which session to close now — not _activeSessionId
+        // later — so a fast re-entry into a new zone before this
+        // window finishes can't cause the wrong session to be closed.
+        _exitingZone = zone;
+        _awaitingExitWindow = true;
+        _pendingCloseSessionId = _activeSessionId;
+        _activeSessionId = null;
+        _exitWindowTimeoutTimer?.cancel();
+        _exitWindowTimeoutTimer = Timer(_exitWindowMaxWait, () {
+          if (_awaitingExitWindow) {
+            debugPrint('⏱️ Exit window timed out — finalizing anyway');
+            _finalizeExitWindow();
+          }
+        });
       }
     }
 
@@ -256,9 +331,27 @@ class ExhaustProvider with ChangeNotifier {
     _activeSessionId = await _fs.createRideSession(session);
   }
 
-  Future<void> _closeSession() async {
-    final sid = _activeSessionId;
-    if (sid == null) return;
+  void _finalizeExitWindow() {
+    _exitWindowTimeoutTimer?.cancel();
+    _exitWindowTimeoutTimer = null;
+    _avgDbExiting = ClassicBluetoothService.instance.averageDb;
+    ClassicBluetoothService.instance.clearDbBuffer();
+    _avgSpeedExiting = SpeedService.instance.captureAndClear();
+    _awaitingExitWindow = false;
+    _exitingZone = null;
+
+    final sid = _pendingCloseSessionId;
+    _pendingCloseSessionId = null;
+    _closeSession(sid);
+  }
+
+  Future<void> _closeSession(String? sessionId) async {
+    if (sessionId == null) {
+      _resetPhaseAverages();
+      _sessionSnapshots.clear();
+      SpeedService.instance.stopTracking();
+      return;
+    }
 
     final approach = _sessionSnapshots
         .where((s) => s.type == SnapshotType.approach)
@@ -267,16 +360,47 @@ class ExhaustProvider with ChangeNotifier {
         .where((s) => s.type == SnapshotType.exit)
         .firstOrNull;
 
+    final phaseSpeeds = [
+      _avgSpeedApproach,
+      _avgSpeedInside,
+      _avgSpeedExiting,
+    ].where((v) => v > 0).toList();
+    final overallAvgSpeed = phaseSpeeds.isEmpty
+        ? 0.0
+        : phaseSpeeds.reduce((a, b) => a + b) / phaseSpeeds.length;
+
     await _fs.closeRideSession(
-      sessionId: sid,
-      avgSpeedKph: SpeedService.instance.averageKph,
+      sessionId: sessionId,
+      avgSpeedKph: overallAvgSpeed,
       decibelBefore: approach?.decibelDb ?? 0.0,
       decibelAfter: exit?.decibelDb ?? 0.0,
+      decibelAvgApproach: _avgDbApproach,
+      decibelAvgInside: _avgDbInside,
+      decibelAvgExiting: _avgDbExiting,
+      speedAvgApproach: _avgSpeedApproach,
+      speedAvgInside: _avgSpeedInside,
+      speedAvgExiting: _avgSpeedExiting,
       snapshots: _sessionSnapshots.map((s) => s.toMap()).toList(),
     );
-    _activeSessionId = null;
     _sessionSnapshots.clear();
+    _resetPhaseAverages();
     SpeedService.instance.stopTracking();
+  }
+
+  void _resetPhaseAverages() {
+    _avgDbApproach = 0.0;
+    _avgDbInside = 0.0;
+    _avgDbExiting = 0.0;
+    _avgSpeedApproach = 0.0;
+    _avgSpeedInside = 0.0;
+    _avgSpeedExiting = 0.0;
+  }
+
+  @override
+  void dispose() {
+    _exitWindowTimeoutTimer?.cancel();
+    _zonePingTimer?.cancel();
+    super.dispose();
   }
 
   /// Manually open exhaust (override)

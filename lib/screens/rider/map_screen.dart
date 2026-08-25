@@ -285,12 +285,21 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       }
     }
 
+    // If the rider is actually inside a zone's radius, that zone must
+    // win over whichever zone's center merely happens to be closest —
+    // otherwise a ride can get logged under the wrong zone_id when two
+    // zones sit near each other.
+    final containingZone = areasProvider.getRestrictedAreaAtPoint(
+      position.latitude,
+      position.longitude,
+    );
+
     exhaustProvider.updateLocation(
       lat: position.latitude,
       lng: position.longitude,
       locationName: address,
       isRestricted: isRestricted,
-      nearestZone: nearestZone,
+      nearestZone: containingZone ?? nearestZone,
       distanceToZone: distanceToNearest,
     );
 

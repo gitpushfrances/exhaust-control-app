@@ -3,6 +3,21 @@
 /// No external packages — pure Dart math only.
 
 import 'package:latlong2/latlong.dart';
+import 'dart:math';
+
+/// Haversine distance in meters between two lat/lng points.
+double haversineMeters(double lat1, double lng1, double lat2, double lng2) {
+  const r = 6371000.0;
+  final dLat = (lat2 - lat1) * pi / 180;
+  final dLng = (lng2 - lng1) * pi / 180;
+  final a =
+      sin(dLat / 2) * sin(dLat / 2) +
+      cos(lat1 * pi / 180) *
+          cos(lat2 * pi / 180) *
+          sin(dLng / 2) *
+          sin(dLng / 2);
+  return r * 2 * asin(sqrt(a));
+}
 
 // ─── Point in Polygon ─────────────────────────────────────────
 /// Returns true if [lat, lng] is inside the given polygon.

@@ -58,6 +58,16 @@ class RideSession {
   final double decibelBefore; // approach snapshot dB
   final double decibelAfter; // exit snapshot dB
   final double decibelReduced; // calculated: before - after
+
+  // Phase-windowed averages — mean of every 200ms reading collected
+  // during each phase, not a single instantaneous point read.
+  final double decibelAvgApproach;
+  final double decibelAvgInside;
+  final double decibelAvgExiting;
+  final double speedAvgApproach;
+  final double speedAvgInside;
+  final double speedAvgExiting;
+
   final List<RideSnapshot> snapshots;
 
   const RideSession({
@@ -72,6 +82,12 @@ class RideSession {
     this.decibelBefore = 0.0,
     this.decibelAfter = 0.0,
     this.decibelReduced = 0.0,
+    this.decibelAvgApproach = 0.0,
+    this.decibelAvgInside = 0.0,
+    this.decibelAvgExiting = 0.0,
+    this.speedAvgApproach = 0.0,
+    this.speedAvgInside = 0.0,
+    this.speedAvgExiting = 0.0,
     this.snapshots = const [],
   });
 
@@ -93,6 +109,12 @@ class RideSession {
       decibelBefore: (m['decibel_before'] ?? 0).toDouble(),
       decibelAfter: (m['decibel_after'] ?? 0).toDouble(),
       decibelReduced: (m['decibel_reduced'] ?? 0).toDouble(),
+      decibelAvgApproach: (m['decibel_avg_approach'] ?? 0).toDouble(),
+      decibelAvgInside: (m['decibel_avg_inside'] ?? 0).toDouble(),
+      decibelAvgExiting: (m['decibel_avg_exiting'] ?? 0).toDouble(),
+      speedAvgApproach: (m['speed_avg_approach'] ?? 0).toDouble(),
+      speedAvgInside: (m['speed_avg_inside'] ?? 0).toDouble(),
+      speedAvgExiting: (m['speed_avg_exiting'] ?? 0).toDouble(),
       snapshots: snapshots,
     );
   }
@@ -108,6 +130,12 @@ class RideSession {
     'decibel_before': decibelBefore,
     'decibel_after': decibelAfter,
     'decibel_reduced': decibelReduced,
+    'decibel_avg_approach': decibelAvgApproach,
+    'decibel_avg_inside': decibelAvgInside,
+    'decibel_avg_exiting': decibelAvgExiting,
+    'speed_avg_approach': speedAvgApproach,
+    'speed_avg_inside': speedAvgInside,
+    'speed_avg_exiting': speedAvgExiting,
     'snapshots': snapshots.map((s) => s.toMap()).toList(),
   };
 }

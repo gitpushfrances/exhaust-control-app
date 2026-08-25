@@ -30,7 +30,9 @@ class _BarangayMyRequestsScreenState extends State<BarangayMyRequestsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final uid = context.read<AuthProvider>().appUser?.uid ?? '';
+    final barangayId =
+        context.read<AuthProvider>().appUser?.primaryBarangayId ?? '';
+    debugPrint('📋 [OFFICIAL-REQUESTS] build — barangayId="$barangayId"');
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -62,12 +64,18 @@ class _BarangayMyRequestsScreenState extends State<BarangayMyRequestsScreen>
         ),
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _fs.streamMyRequests(uid),
+        stream: _fs.streamRequestsForBarangay(barangayId),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
+            debugPrint(
+              '⏳ [OFFICIAL-REQUESTS] waiting — barangayId="$barangayId"',
+            );
             return const Center(child: CircularProgressIndicator());
           }
           final all = snap.data ?? [];
+          debugPrint(
+            '📋 [OFFICIAL-REQUESTS] barangayId="$barangayId" → ${all.length} total docs',
+          );
           final pending = all.where((a) => a['status'] == 'pending').toList();
           final approved = all.where((a) => a['status'] == 'approved').toList();
           final rejected = all.where((a) => a['status'] == 'rejected').toList();

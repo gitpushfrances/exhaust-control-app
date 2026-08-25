@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/restricted_area.dart';
 import '../models/app_user.dart';
 import '../models/ride_session.dart';
+import '../utils/geo_utils.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -30,6 +31,24 @@ class FirestoreService {
     return _db
         .collection('restricted_areas')
         .where('status', isEqualTo: 'approved')
+        .snapshots()
+        .map(
+          (snap) => snap.docs.map((d) {
+            final data = {...d.data(), 'id': d.id};
+            return RestrictedArea.fromMap(data);
+          }).toList(),
+        );
+  }
+
+  /// Approved zones scoped to one barangay — used by the official's
+  /// Ride Logs screen so each official only sees their own zones as tabs.
+  Stream<List<RestrictedArea>> streamApprovedAreasForBarangay(
+    String barangayId,
+  ) {
+    return _db
+        .collection('restricted_areas')
+        .where('status', isEqualTo: 'approved')
+        .where('barangay_id', isEqualTo: barangayId)
         .snapshots()
         .map(
           (snap) => snap.docs.map((d) {
@@ -381,6 +400,43 @@ class FirestoreService {
 
   // ─── Barangay Official ────────────────────────────────────────
 
+  /// Checks pending/approved zones in the same barangay for a radius
+  /// overlap with a proposed new zone. Returns the conflicting zone's
+  /// name, or null if there's no overlap.
+  Future<String?> findOverlappingZone({
+    required String barangayId,
+    required double latitude,
+    required double longitude,
+    required double radius,
+  }) async {
+    try {
+      final snap = await _db
+          .collection('restricted_areas')
+          .where('barangay_id', isEqualTo: barangayId)
+          .where('status', whereIn: ['pending', 'approved'])
+          .get();
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final existingLat = (data['latitude'] ?? 0.0).toDouble();
+        final existingLng = (data['longitude'] ?? 0.0).toDouble();
+        final existingRadius = (data['radius'] ?? 0.0).toDouble();
+        final dist = haversineMeters(
+          latitude,
+          longitude,
+          existingLat,
+          existingLng,
+        );
+        if (dist < (radius + existingRadius)) {
+          return data['name'] ?? 'Unnamed zone';
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error checking zone overlap: $e');
+      return null;
+    }
+  }
+
   Future<bool> submitZoneRequest({
     required String name,
     required double latitude,
@@ -428,6 +484,34 @@ class FirestoreService {
 
   Stream<Map<String, int>> streamMyRequestStats(String uid) {
     return streamMyRequests(uid).map(
+      (list) => {
+        'total': list.length,
+        'pending': list.where((a) => a['status'] == 'pending').length,
+        'approved': list.where((a) => a['status'] == 'approved').length,
+        'rejected': list.where((a) => a['status'] == 'rejected').length,
+      },
+    );
+  }
+
+  /// All requests (any status) for a barangay — scopes the official's own
+  /// Requests/Home screens to their assigned barangay, not to whichever
+  /// uid originally submitted each one, and not globally like admin's view.
+  Stream<List<Map<String, dynamic>>> streamRequestsForBarangay(
+    String barangayId,
+  ) {
+    return _db
+        .collection('restricted_areas')
+        .where('barangay_id', isEqualTo: barangayId)
+        .orderBy('created_at', descending: true)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((d) => {...d.data(), 'doc_id': d.id}).toList(),
+        );
+  }
+
+  Stream<Map<String, int>> streamRequestStatsForBarangay(String barangayId) {
+    return streamRequestsForBarangay(barangayId).map(
       (list) => {
         'total': list.length,
         'pending': list.where((a) => a['status'] == 'pending').length,
@@ -524,10 +608,15 @@ class FirestoreService {
     required double avgSpeedKph,
     required double decibelBefore,
     required double decibelAfter,
+    required double decibelAvgApproach,
+    required double decibelAvgInside,
+    required double decibelAvgExiting,
+    required double speedAvgApproach,
+    required double speedAvgInside,
+    required double speedAvgExiting,
     required List<Map<String, dynamic>> snapshots,
   }) async {
     try {
-      // Extract per-snapshot speed values
       final approachSnap = snapshots.firstWhere(
         (s) => s['type'] == 'approach',
         orElse: () => {},
@@ -544,16 +633,24 @@ class FirestoreService {
       await _db.collection('ride_sessions').doc(sessionId).update({
         'ended_at': DateTime.now().toIso8601String(),
         'avg_speed_kph': avgSpeedKph,
-        // Speed breakdown
+        // Single-point snapshot values (unchanged, kept for backward compat)
         'speed_before': (approachSnap['speed_kph'] ?? 0).toDouble(),
         'speed_during': (entrySnap['speed_kph'] ?? 0).toDouble(),
         'speed_after': (exitSnap['speed_kph'] ?? 0).toDouble(),
-        // Decibel breakdown
         'decibel_before': decibelBefore,
         'decibel_after': decibelAfter,
         'decibel_reduced': (decibelBefore - decibelAfter).clamp(0.0, 200.0),
-        // Decibel per snapshot
         'decibel_during': (entrySnap['decibel_db'] ?? 0).toDouble(),
+        // Phase-windowed averages — the actual proof-of-reduction data.
+        // Each is the mean of every 200ms reading collected during that
+        // phase (approach / inside the zone / exit trailing window),
+        // not a single instantaneous point.
+        'decibel_avg_approach': decibelAvgApproach,
+        'decibel_avg_inside': decibelAvgInside,
+        'decibel_avg_exiting': decibelAvgExiting,
+        'speed_avg_approach': speedAvgApproach,
+        'speed_avg_inside': speedAvgInside,
+        'speed_avg_exiting': speedAvgExiting,
         'snapshots': snapshots,
       });
     } catch (e) {
@@ -561,11 +658,28 @@ class FirestoreService {
     }
   }
 
-  /// Stream all sessions for a barangay (for official logs screen)
+  /// Stream all sessions for a barangay (kept for any screen that still
+  /// wants the unfiltered flat list)
   Stream<List<RideSession>> streamRideSessions(String barangayId) {
     return _db
         .collection('ride_sessions')
         .where('barangay_id', isEqualTo: barangayId)
+        .orderBy('started_at', descending: true)
+        .limit(50)
+        .snapshots()
+        .map(
+          (snap) => snap.docs
+              .map((d) => RideSession.fromMap(d.id, d.data()))
+              .toList(),
+        );
+  }
+
+  /// Stream sessions scoped to a single zone — used by the tabbed
+  /// Ride Logs screen so each zone tab only shows its own rides.
+  Stream<List<RideSession>> streamRideSessionsForZone(String zoneId) {
+    return _db
+        .collection('ride_sessions')
+        .where('zone_id', isEqualTo: zoneId)
         .orderBy('started_at', descending: true)
         .limit(50)
         .snapshots()
