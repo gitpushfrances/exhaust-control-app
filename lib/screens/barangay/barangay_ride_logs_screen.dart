@@ -286,12 +286,28 @@ class _ZoneLogView extends StatelessWidget {
         final previous = sessions.skip(1).toList();
 
         final ridersPassed = sessions.length;
-        final avgSpeed = _avg(sessions.map((s) => s.avgSpeedKph).toList());
-        final avgDbLevel = _avg(
+
+        final avgSpeedApproach = _avg(
+          sessions.map((s) => s.speedAvgApproach).where((v) => v > 0).toList(),
+        );
+        final avgSpeedInside = _avg(
+          sessions.map((s) => s.speedAvgInside).where((v) => v > 0).toList(),
+        );
+        final avgSpeedExiting = _avg(
+          sessions.map((s) => s.speedAvgExiting).where((v) => v > 0).toList(),
+        );
+
+        final avgDbApproach = _avg(
+          sessions
+              .map((s) => s.decibelAvgApproach)
+              .where((v) => v > 0)
+              .toList(),
+        );
+        final avgDbInside = _avg(
           sessions.map((s) => s.decibelAvgInside).where((v) => v > 0).toList(),
         );
-        final avgDbReduced = _avg(
-          sessions.map((s) => s.decibelReduced).where((v) => v > 0).toList(),
+        final avgDbExiting = _avg(
+          sessions.map((s) => s.decibelAvgExiting).where((v) => v > 0).toList(),
         );
 
         return ListView(
@@ -299,9 +315,12 @@ class _ZoneLogView extends StatelessWidget {
           children: [
             _ZoneSummaryGrid(
               ridersPassed: ridersPassed,
-              avgSpeed: avgSpeed,
-              avgDbLevel: avgDbLevel,
-              avgDbReduced: avgDbReduced,
+              avgSpeedApproach: avgSpeedApproach,
+              avgSpeedInside: avgSpeedInside,
+              avgSpeedExiting: avgSpeedExiting,
+              avgDbApproach: avgDbApproach,
+              avgDbInside: avgDbInside,
+              avgDbExiting: avgDbExiting,
             ),
             const SizedBox(height: 20),
             const Text(
@@ -339,67 +358,95 @@ class _ZoneLogView extends StatelessWidget {
   }
 }
 
-// ─── Zone summary grid (2x2, matches admin summary card style) ────────
+// ─── Zone summary — riders passed + per-phase speed/dB averages ───────
 
 class _ZoneSummaryGrid extends StatelessWidget {
   final int ridersPassed;
-  final double avgSpeed;
-  final double avgDbLevel;
-  final double avgDbReduced;
+  final double avgSpeedApproach;
+  final double avgSpeedInside;
+  final double avgSpeedExiting;
+  final double avgDbApproach;
+  final double avgDbInside;
+  final double avgDbExiting;
 
   const _ZoneSummaryGrid({
     required this.ridersPassed,
-    required this.avgSpeed,
-    required this.avgDbLevel,
-    required this.avgDbReduced,
+    required this.avgSpeedApproach,
+    required this.avgSpeedInside,
+    required this.avgSpeedExiting,
+    required this.avgDbApproach,
+    required this.avgDbInside,
+    required this.avgDbExiting,
   });
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.two_wheeler, size: 18, color: Color(0xFF3B82F6)),
+              const SizedBox(width: 10),
+              Text(
+                '$ridersPassed',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF3B82F6),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Riders Passed',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        const Text(
+          'Phase Averages',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6B7280),
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
-              child: _SummaryTile(
-                icon: Icons.two_wheeler,
-                label: 'Riders Passed',
-                value: '$ridersPassed',
-                color: const Color(0xFF3B82F6),
+              child: _PhaseSummaryTile(
+                label: 'Approach',
+                speed: avgSpeedApproach,
+                db: avgDbApproach,
+                color: const Color(0xFF6366F1),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _SummaryTile(
-                icon: Icons.speed,
-                label: 'Avg Speed',
-                value: '${avgSpeed.toStringAsFixed(1)} km/h',
-                color: const Color(0xFFF59E0B),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _SummaryTile(
-                icon: Icons.volume_up,
-                label: 'Avg dB Level',
-                value: avgDbLevel > 0
-                    ? '${avgDbLevel.toStringAsFixed(1)} dB'
-                    : '— dB',
+              child: _PhaseSummaryTile(
+                label: 'Inside',
+                speed: avgSpeedInside,
+                db: avgDbInside,
                 color: const Color(0xFFEF4444),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: _SummaryTile(
-                icon: Icons.volume_down,
-                label: 'Avg dB Reduced',
-                value: avgDbReduced > 0
-                    ? '${avgDbReduced.toStringAsFixed(1)} dB'
-                    : '— dB',
+              child: _PhaseSummaryTile(
+                label: 'Exiting',
+                speed: avgSpeedExiting,
+                db: avgDbExiting,
                 color: const Color(0xFF10B981),
               ),
             ),
@@ -410,23 +457,23 @@ class _ZoneSummaryGrid extends StatelessWidget {
   }
 }
 
-class _SummaryTile extends StatelessWidget {
-  final IconData icon;
+class _PhaseSummaryTile extends StatelessWidget {
   final String label;
-  final String value;
+  final double speed;
+  final double db;
   final Color color;
 
-  const _SummaryTile({
-    required this.icon,
+  const _PhaseSummaryTile({
     required this.label,
-    required this.value,
+    required this.speed,
+    required this.db,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -435,20 +482,47 @@ class _SummaryTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(height: 8),
           Text(
-            value,
+            label,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.speed, size: 13, color: Color(0xFF9CA3AF)),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  speed > 0 ? '${speed.toStringAsFixed(1)} km/h' : '—',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(Icons.graphic_eq, size: 13, color: Color(0xFF9CA3AF)),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  db > 0 ? '${db.toStringAsFixed(1)} dB' : '—',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

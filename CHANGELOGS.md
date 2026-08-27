@@ -4,6 +4,219 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4 patch 7] - Ride Session Storage Fix, Zone Overlap Guard & Official Logs Redesign
+
+**Status:** ✅ COMPLETED — August 26, 2026
+
+### 🎯 What This Phase Achieved:
+Fixed a critical data-loss bug where ride sessions silently failed to log
+whenever Bluetooth wasn't connected — meaning all speed/zone/timing data
+was lost on every test run without HC-05 paired, not just the dB fields
+that were expected to be zero. Also fixed a second bug where the overall
+`avg_speed_kph` field always wrote as `0.0` even on sessions that did log,
+due to a buffer being read after it was already cleared. Added a
+same-barangay zone-overlap check on the official's Submit Request screen,
+and added the barangay's approved zone(s) as visible circles on that same
+map so officials can see their own active zone before submitting a new
+one. Redesigned the official's Ride Logs screen from a horizontal tab bar
+(one tab per approved zone) to a tappable card list, pushing into a
+per-zone detail screen — same summary/records content, cleaner navigation
+for barangays with multiple approved zones.
+
+### 🐞 Bugs Found & Fixed During Implementation
+- **Ride sessions never created without a confirmed BT command** —
+  `checkRestrictedAreaStatus()` gated `_startSession()` behind
+  `if (sent)`, where `sent` is the result of `ClassicBluetoothService
+  .sendRaw('ZENTER')`. Every test run without HC-05 paired had `sent ==
+  false` on every zone entry, so no Firestore document was ever created
+  — confirmed via terminal log showing `ZENTER failed — BT not
+  connected` on every entry with no accompanying `_startSession called`
+  line, and via Firestore showing no new documents newer than the last
+  session logged while BT happened to be connected. This was not a
+  partial-data bug (e.g. only dB missing) — it was total data loss for
+  every unconnected test ride. Fixed by removing the `if (sent)` gate;
+  session creation is now independent of hardware command success,
+  matching the existing `0.0`-until-hardware pattern already used for
+  dB fields.
+- **`avg_speed_kph` always stored as `0.0`** — `_closeSession()` read
+  `SpeedService.instance.averageKph` to get the overall session speed,
+  but `_finalizeExitWindow()` had already called `SpeedService.instance
+  .captureAndClear()` two lines earlier for the exiting-phase average,
+  which empties the internal buffer as a side effect. The subsequent
+  `averageKph` read in `_closeSession()` was therefore always reading
+  an empty buffer. Confirmed via Firestore document inspection showing
+  `avg_speed_kph: 0` despite non-zero phase-level speeds already stored
+  correctly (`speed_avg_approach`, `speed_avg_inside`,
+  `speed_avg_exiting`, which are captured into local variables *before*
+  each clear and were never affected). Fixed by computing
+  `avg_speed_kph` from the mean of the three already-captured phase
+  averages instead of re-reading the drained live buffer.
+
+### ✅ Modified Files
+
+#### `lib/providers/exhaust_provider.dart`
+- **Modified:** `checkRestrictedAreaStatus()` — `_startSession()` now
+  called unconditionally on zone entry, no longer gated behind BT send
+  success
+- **Modified:** `_closeSession()` — `avgSpeedKph` now computed as the
+  mean of `_avgSpeedApproach` / `_avgSpeedInside` / `_avgSpeedExiting`
+  (filtered to non-zero values) instead of reading
+  `SpeedService.instance.averageKph` after the buffer was already
+  cleared
+
+#### `lib/services/firestore_service.dart`
+- **Added:** `findOverlappingZone()` — checks all pending/approved
+  zones in a barangay against a proposed new zone's center + radius
+  using Haversine distance; returns the conflicting zone's name if the
+  circles overlap, `null` otherwise
+
+#### `lib/screens/barangay/barangay_submit_request_screen.dart`
+- **Added field:** `_existingAreas` — holds the barangay's approved
+  zones for map display
+- **Modified:** `_loadBoundary()` — now also subscribes to
+  `streamApprovedAreasForBarangay()` and stores results in
+  `_existingAreas`
+- **Added:** `CircleLayer` rendering `_existingAreas` as green circles
+  on the submission map, alongside the existing boundary polygon and
+  tapped-pin circle
+- **Modified:** `_submitRequest()` — now calls `findOverlappingZone()`
+  before submission; blocks and shows an error snackbar naming the
+  conflicting zone if an overlap is found
+
+#### `lib/screens/barangay/barangay_ride_logs_screen.dart`
+- **Removed:** `_ZoneTabsView` / `_ZoneTabsViewState` — horizontal
+  `TabBar` + `TabBarView` per approved zone
+- **Added:** `_ZoneCardList` — renders one tappable card per approved
+  zone, each showing zone name and a live ride-count subtitle via
+  `streamRideSessionsForZone()`
+- **Added:** `_ZoneCard` — individual card widget, navigates to
+  `_ZoneDetailScreen` on tap
+- **Added:** `_ZoneDetailScreen` — pushed screen hosting the existing
+  `_ZoneLogView` (summary grid, Latest Record, Previous Records —
+  unchanged) scoped to the tapped zone
+
+### ⚠️ Known Limitations (documented, not fixed this session)
+- `decibel_*` fields remain `0.0` across all sessions until HC-05
+  hardware is physically connected during a ride — this is expected,
+  not a bug; the same storage pipeline that now correctly captures
+  speed will populate dB automatically once
+  `ClassicBluetoothService.instance.averageDb` has real readings to
+  average, with no further code changes anticipated
+- `findOverlappingZone()` blocks only on radius-circle overlap between
+  zones in the *same* barangay; it does not currently prevent a
+  barangay from having multiple non-overlapping approved zones — that
+  was confirmed as intended behavior, not a gap, for this session
+- Zone-overlap check runs as a separate read before submission
+  (`get()` on `restricted_areas`) rather than as a Firestore security
+  rule or transaction — a race between two officials submitting
+  overlapping zones at nearly the same moment is still theoretically
+  possible and not addressed here
+
+---
+
+## [0.7.4 patch 9] - GPS Boundary Debounce & BT Command Completion Confirmation
+
+**Status:** ✅ COMPLETED
+
+### 🎯 What This Phase Achieved:
+Fixed GPS jitter at restricted-zone boundaries causing rapid duplicate
+zone-entry/exit commands. Renamed BT protocol words ZENTER/ZEXIT to
+INSIDE/OUTSIDE. Added an explicit Arduino completion signal
+(DONE:CLOSE / DONE:OPEN) sent only after the 45° valve rotation actually
+finishes, replacing reliance on the immediate ACK fired the instant the
+motor starts moving. Flutter's `send()` now waits for the correct
+completion signal per command instead of a same-string echo.
+
+### 🐞 Bugs Found & Fixed
+- **GPS boundary flapping could fire duplicate INSIDE/OUTSIDE commands**
+  — confirmed via field log showing `isInRestricted` flipping true/false
+  repeatedly near a zone edge. Fixed with a 1.5s dwell timer in
+  `checkRestrictedAreaStatus()`: a raw state flip only commits (and only
+  then sends a BT command) after holding for 1.5s.
+- **`_valveError` could only detect a disconnected Bluetooth link, not a
+  failed or corrupted command** — `sendRaw()` returned true on a
+  successful write regardless of whether Arduino received/executed it.
+  Fixed by routing INSIDE/OUTSIDE through `send()`, which now waits for
+  a command-specific completion line (`DONE:CLOSE`/`DONE:OPEN`) with a
+  1s timeout, tightened from the prior 2s default to match the 500ms
+  rotation duration.
+- **Corrupted BT bytes on the HC-05 link correctly rejected, confirmed
+  on hardware** — two garbage reads occurred during field testing;
+  word-based command matching rejected both with zero motor misfire.
+
+### ✅ Modified Files
+#### `lib/providers/exhaust_provider.dart`
+- **Added:** 1.5s dwell debounce (`_pendingRestrictedState`,
+  `_restrictedDwellTimer`) in `checkRestrictedAreaStatus()`, now
+  synchronous; actual zone-entry/exit logic moved to new
+  `_applyRestrictedAreaChange()`
+- **Renamed:** BT commands `ZENTER`/`ZEXIT` → `INSIDE`/`OUTSIDE`, sent
+  via `send()` instead of `sendRaw()`
+
+#### `lib/services/classic_bluetooth_service.dart`
+- **Added:** `_expectedReplyFor()` — maps INSIDE/CLOSE → `DONE:CLOSE`,
+  OUTSIDE/OPEN → `DONE:OPEN`, STOP → `ACK:STOP`
+- **Modified:** `send()` timeout default 2s → 1s; `_routeLine()` now
+  matches the full expected line for both `ACK:` and `DONE:` prefixes
+
+#### Arduino sketch
+- **Added:** `DONE:CLOSE`/`DONE:OPEN` sent (mirrored to Serial Monitor)
+  only after the timed 45° rotation actually completes
+- **Fixed:** direction read after `stopMotor()` always evaluated false,
+  causing every completion to log as "open" regardless of actual
+  direction
+- **Fixed:** `valveRotating` not cleared inside `stopMotor()`, which
+  could permanently lock out future rotation commands if stopped
+  mid-rotation by another path
+- **Changed:** manual OPEN/CLOSE now routed through the same calibrated
+  `startValveRotation()` as automatic zone commands, instead of running
+  unbounded until the 400ms dead-man's switch cut it off mid-swing
+- **Silenced:** ZPING heartbeat no longer logs "unknown command" every
+  second
+
+### ⚠️ Known Limitations (not fixed this session)
+- Direction-label mismatch still unresolved: `setMotor()` labels
+  `CLOSING` as `(CCW)`, while the zone-command handler labels the same
+  `CLOSING` action as `45 deg CW`. Physically correct direction not yet
+  confirmed against hardware; both print statements need to agree once
+  it is.
+- 1.5s dwell time is not yet validated against real riding speed vs.
+  zone size — picked as a starting value, not field-tuned.
+- A suspiciously flat, sustained dB reading (~85 dB, motor idle) was
+  observed during this session's test run — possible interference
+  source not yet investigated.
+
+---
+
+## [0.7.4 patch 8] - Phase-Averaged Speed & dB Summary (Admin + Barangay Reports)
+
+**Status:** ✅ COMPLETED
+
+### 🎯 What This Phase Achieved:
+Replaced the single overall avg-speed / avg-dB-reduced summary on both the
+Admin Reports screen and Barangay Ride Logs screen with a phase-level
+breakdown — Approach, Inside, Exiting — each showing its own avg speed and
+avg dB. Matches the level of detail already captured per-session in
+`ride_sessions.snapshots` but not previously surfaced in the summary view.
+
+### ⚠️ Note
+- The previous single `avg_db_reduced` figure (before vs. after) is no
+  longer displayed anywhere in these two screens — confirm this is the
+  intended replacement, not an unintentional loss of the "how much
+  quieter" headline metric.
+
+### ✅ Modified Files
+#### `lib/screens/admin/admin_reports_screen.dart`
+- **Replaced:** `_SummaryCard` (single value) → `_PhaseSummaryCard`
+  (speed + dB per phase); added `_avg()` helper filtering to non-zero
+  values only
+
+#### `lib/screens/barangay/barangay_ride_logs_screen.dart`
+- **Replaced:** `_SummaryTile` → `_PhaseSummaryTile`, same phase
+  breakdown pattern as above
+
+---
+
 ## [0.7.4 patch 6] - Classic Bluetooth Reliability: Reconnect, Command Verification & BT Pin Remap
 
 **Status:** ✅ COMPLETED — August 12, 2026

@@ -132,14 +132,11 @@ class ClassicBluetoothService extends ChangeNotifier {
     _handleDisconnect();
   }
 
-  /// Sends a command and waits for the matching ACK from the Arduino.
-  /// Returns true ONLY if the ACK was actually received — not just that
-  /// the write succeeded. Fixes the previous silent-false-positive bug.
-  /// Fire-and-forget send — no ACK expected. Used for zone-status signals
-  /// (ZENTER/ZPING/ZEXIT), which are informational only and shouldn't
-  /// block on a reply that the Arduino never sends. Returns true if the
-  /// write was attempted while connected (not delivery confirmation —
-  /// just "we were connected and the write didn't throw").
+  /// Fire-and-forget send — no reply expected or awaited. Only appropriate
+  /// for signals the Arduino never confirms (currently: the ZPING
+  /// heartbeat). Returns true if the write was attempted while connected —
+  /// NOT delivery or execution confirmation, just "we were connected and
+  /// the write didn't throw."
   Future<bool> sendRaw(String command) async {
     if (!_isConnected || _connection == null) return false;
     try {
@@ -152,14 +149,38 @@ class ClassicBluetoothService extends ChangeNotifier {
     }
   }
 
+  /// Maps an outgoing command to the exact line Arduino sends back once
+  /// it's actually done — not the immediate ACK:<direction> that fires
+  /// the instant the motor starts moving. INSIDE/OUTSIDE/OPEN/CLOSE all
+  /// route through the same timed 45-degree rotation on the Arduino now,
+  /// so their real completion signal is DONE:<direction>. STOP has no
+  /// rotation to wait for, so its immediate ACK is already correct.
+  String _expectedReplyFor(String command) {
+    switch (command) {
+      case 'INSIDE':
+      case 'CLOSE':
+        return 'DONE:CLOSE';
+      case 'OUTSIDE':
+      case 'OPEN':
+        return 'DONE:OPEN';
+      case 'STOP':
+        return 'ACK:STOP';
+      default:
+        return 'ACK:$command';
+    }
+  }
+
+  /// Sends a command and waits for its matching confirmation line (see
+  /// _expectedReplyFor). Returns true ONLY if that exact line arrived
+  /// before [timeout] — not just that the write succeeded.
   Future<bool> send(
     String command, {
-    Duration timeout = const Duration(seconds: 2),
+    Duration timeout = const Duration(seconds: 1),
   }) async {
     if (!_isConnected || _connection == null) return false;
 
     try {
-      _pendingAckCommand = command;
+      _pendingAckCommand = _expectedReplyFor(command);
       _pendingAck = Completer<bool>();
 
       _connection!.output.add(utf8.encode('$command\r\n'));
@@ -196,11 +217,12 @@ class ClassicBluetoothService extends ChangeNotifier {
       }
       return;
     }
-    if (line.startsWith('ACK:')) {
-      final acked = line.substring(4);
+    if (line.startsWith('ACK:') || line.startsWith('DONE:')) {
+      // Match against the full expected line (e.g. "DONE:CLOSE") — ACK
+      // and DONE are distinct signals now, not interchangeable.
       if (_pendingAck != null &&
           !_pendingAck!.isCompleted &&
-          _pendingAckCommand == acked) {
+          _pendingAckCommand == line) {
         _pendingAck!.complete(true);
       }
       return;

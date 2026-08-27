@@ -686,77 +686,136 @@ class _SummaryCards extends StatelessWidget {
 
   const _SummaryCards({required this.sessions});
 
+  double _avg(Iterable<double> values) {
+    final filtered = values.where((v) => v > 0).toList();
+    if (filtered.isEmpty) return 0.0;
+    return filtered.reduce((a, b) => a + b) / filtered.length;
+  }
+
   @override
   Widget build(BuildContext context) {
     final count = sessions.length;
-    final avgSpeed = count == 0
-        ? 0.0
-        : sessions.fold(0.0, (a, b) => a + b.avgSpeedKph) / count;
-    final avgDbBefore = count == 0
-        ? 0.0
-        : sessions.fold(0.0, (a, b) => a + b.decibelBefore) / count;
-    final avgDbReduced = count == 0
-        ? 0.0
-        : sessions.fold(0.0, (a, b) => a + b.decibelReduced) / count;
+
+    final avgSpeedApproach = _avg(sessions.map((s) => s.speedAvgApproach));
+    final avgSpeedInside = _avg(sessions.map((s) => s.speedAvgInside));
+    final avgSpeedExiting = _avg(sessions.map((s) => s.speedAvgExiting));
+
+    final avgDbApproach = _avg(sessions.map((s) => s.decibelAvgApproach));
+    final avgDbInside = _avg(sessions.map((s) => s.decibelAvgInside));
+    final avgDbExiting = _avg(sessions.map((s) => s.decibelAvgExiting));
+
     debugPrint(
-      '🧮 [ADMIN] Summary — count=$count avgSpeed=${avgSpeed.toStringAsFixed(1)}km/h '
-      'avgDbBefore=${avgDbBefore.toStringAsFixed(1)}dB avgDbReduced=${avgDbReduced.toStringAsFixed(1)}dB',
+      '🧮 [ADMIN] Summary — count=$count '
+      'speed(app/ins/exit)=${avgSpeedApproach.toStringAsFixed(1)}/'
+      '${avgSpeedInside.toStringAsFixed(1)}/${avgSpeedExiting.toStringAsFixed(1)} '
+      'db(app/ins/exit)=${avgDbApproach.toStringAsFixed(1)}/'
+      '${avgDbInside.toStringAsFixed(1)}/${avgDbExiting.toStringAsFixed(1)}',
     );
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-      childAspectRatio: 1.6,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SummaryCard(
-          label: 'Riders Passed',
-          value: '$count',
-          icon: Icons.two_wheeler_outlined,
-          color: const Color(0xFF3B82F6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.two_wheeler_outlined,
+                size: 18,
+                color: Color(0xFF3B82F6),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '$count',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF3B82F6),
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'Riders Passed',
+                style: TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+              ),
+            ],
+          ),
         ),
-        _SummaryCard(
-          label: 'Avg Speed',
-          value: '${avgSpeed.toStringAsFixed(1)} km/h',
-          icon: Icons.speed_outlined,
-          color: const Color(0xFFF59E0B),
+        const SizedBox(height: 10),
+        const Text(
+          'Phase Averages',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF6B7280),
+          ),
         ),
-        _SummaryCard(
-          label: 'Avg dB Level',
-          value: '${avgDbBefore.toStringAsFixed(1)} dB',
-          icon: Icons.volume_up_outlined,
-          color: const Color(0xFFEF4444),
-        ),
-        _SummaryCard(
-          label: 'Avg dB Reduced',
-          value: '${avgDbReduced.toStringAsFixed(1)} dB',
-          icon: Icons.volume_down_outlined,
-          color: const Color(0xFF10B981),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _PhaseSummaryCard(
+                label: 'Approach',
+                speed: avgSpeedApproach,
+                db: avgDbApproach,
+                color: const Color(0xFF6366F1),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PhaseSummaryCard(
+                label: 'Inside',
+                speed: avgSpeedInside,
+                db: avgDbInside,
+                color: const Color(0xFFEF4444),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PhaseSummaryCard(
+                label: 'Exiting',
+                speed: avgSpeedExiting,
+                db: avgDbExiting,
+                color: const Color(0xFF10B981),
+              ),
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _PhaseSummaryCard extends StatelessWidget {
   final String label;
-  final String value;
-  final IconData icon;
+  final double speed;
+  final double db;
   final Color color;
 
-  const _SummaryCard({
+  const _PhaseSummaryCard({
     required this.label,
-    required this.value,
-    required this.icon,
+    required this.speed,
+    required this.db,
     required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -771,23 +830,54 @@ class _SummaryCard extends StatelessWidget {
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Icon(icon, color: color, size: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
             children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: color,
+              const Icon(
+                Icons.speed_outlined,
+                size: 13,
+                color: Color(0xFF9CA3AF),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  speed > 0 ? '${speed.toStringAsFixed(1)} km/h' : '—',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
                 ),
               ),
-              Text(
-                label,
-                style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Icon(
+                Icons.volume_up_outlined,
+                size: 13,
+                color: Color(0xFF9CA3AF),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: Text(
+                  db > 0 ? '${db.toStringAsFixed(1)} dB' : '—',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF111827),
+                  ),
+                ),
               ),
             ],
           ),

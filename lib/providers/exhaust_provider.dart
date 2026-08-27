@@ -49,6 +49,13 @@ class ExhaustProvider with ChangeNotifier {
   Timer? _exitWindowTimeoutTimer;
   static const Duration _exitWindowMaxWait = Duration(seconds: 20);
 
+  // Debounce GPS boundary jitter before committing a restricted-area state.
+  bool? _pendingRestrictedState;
+  Timer? _restrictedDwellTimer;
+
+  // State must remain stable for 1.5 seconds before it is committed.
+  static const Duration _restrictedDwellTime = Duration(milliseconds: 1500);
+
   // Periodic ZPING while inside a zone — heartbeat for the Arduino
   // watchdog and a live "still connected" signal on the Serial Monitor.
   Timer? _zonePingTimer;
@@ -195,28 +202,64 @@ class ExhaustProvider with ChangeNotifier {
   }
 
   /// Check if current location is in a restricted area
-  /// This will be called by the location service when position updates
-  Future<void> checkRestrictedAreaStatus(
-    bool isInRestricted, {
-    RestrictedArea? zone,
-  }) async {
+  /// This will be called by the location service when position updates.
+  /// A raw flip only acts after it holds for [_restrictedDwellTime] —
+  /// GPS jitter right at the zone edge can't fire ZENTER/ZEXIT back-to-back.
+  void checkRestrictedAreaStatus(bool isInRestricted, {RestrictedArea? zone}) {
     debugPrint(
       '📍 checkRestrictedAreaStatus — isInRestricted: $isInRestricted, oldValue: $_isInRestrictedArea, autoMode: $_isAutoMode, riderUid: $_riderUid',
     );
-    final oldValue = _isInRestrictedArea;
+
+    if (isInRestricted == _isInRestrictedArea) {
+      // Matches the already-committed state — any opposite-direction
+      // flip that was mid-dwell was noise. Cancel it.
+      _restrictedDwellTimer?.cancel();
+      _restrictedDwellTimer = null;
+      _pendingRestrictedState = null;
+      return;
+    }
+
+    if (_pendingRestrictedState == isInRestricted) {
+      return; // same candidate still holding, timer already running
+    }
+
+    _pendingRestrictedState = isInRestricted;
+    _restrictedDwellTimer?.cancel();
+    final pendingState = isInRestricted;
+    final pendingZone = zone;
+
+    _restrictedDwellTimer = Timer(_restrictedDwellTime, () {
+      if (_pendingRestrictedState != pendingState) {
+        return;
+      }
+
+      _applyRestrictedAreaChange(pendingState, zone: pendingZone);
+
+      _pendingRestrictedState = null;
+      _restrictedDwellTimer = null;
+    });
+  }
+
+  /// Fires ZENTER/ZEXIT and does the actual state/session bookkeeping.
+  /// Only reached once a raw flip has survived the dwell window.
+  Future<void> _applyRestrictedAreaChange(
+    bool isInRestricted, {
+    RestrictedArea? zone,
+  }) async {
     _isInRestrictedArea = isInRestricted;
 
-    if (_isInRestrictedArea != oldValue && _isAutoMode) {
-      if (_isInRestrictedArea) {
+    if (_isAutoMode) {
+      if (isInRestricted) {
         // Zone entry — capture the approach-phase averages before
         // clearing both buffers so the "inside" phase starts clean.
         _avgDbApproach = ClassicBluetoothService.instance.averageDb;
         ClassicBluetoothService.instance.clearDbBuffer();
         _avgSpeedApproach = SpeedService.instance.captureAndClear();
 
-        // ZENTER is the sole trigger for the 45° close rotation now —
-        // CLOSE/OPEN stay reserved for the manual override buttons only.
-        final sent = await ClassicBluetoothService.instance.sendRaw('ZENTER');
+        // Tell Arduino the rider is now INSIDE the restricted area, and
+        // wait for DONE:CLOSE — confirms the valve actually finished its
+        // 45° swing, not just that the write went through.
+        final sent = await ClassicBluetoothService.instance.send('INSIDE');
         _valveError = !sent;
 
         if (sent) {
@@ -258,9 +301,10 @@ class ExhaustProvider with ChangeNotifier {
         _zonePingTimer?.cancel();
         _zonePingTimer = null;
 
-        // ZEXIT is the sole trigger for the 45° open-back rotation now —
-        // CLOSE/OPEN stay reserved for the manual override buttons only.
-        final sent = await ClassicBluetoothService.instance.sendRaw('ZEXIT');
+        // Tell Arduino the rider is leaving the restricted area, and wait
+        // for DONE:OPEN — confirms the valve actually finished returning,
+        // not just that the write went through.
+        final sent = await ClassicBluetoothService.instance.send('OUTSIDE');
         _valveError = !sent;
 
         _takeSnapshot(
@@ -400,6 +444,7 @@ class ExhaustProvider with ChangeNotifier {
   void dispose() {
     _exitWindowTimeoutTimer?.cancel();
     _zonePingTimer?.cancel();
+    _restrictedDwellTimer?.cancel();
     super.dispose();
   }
 

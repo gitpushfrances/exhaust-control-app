@@ -51,7 +51,7 @@ class SpeedService extends ChangeNotifier {
 
   // Live dB reading streamed from the Arduino over Bluetooth.
   double get currentDb => ClassicBluetoothService.instance.latestDb ?? 0.0;
-
+  
   /// Call this every time geolocator gives a new position (from map_screen)
   void onPositionUpdate(Position position) {
     _lastPosition = position;
