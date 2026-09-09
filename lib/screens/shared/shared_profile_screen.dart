@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/bluetooth_provider.dart';
+
 import '../test/bt_classic_test_screen.dart';
 import '../test/speed_monitor_screen.dart';
 
@@ -325,8 +325,6 @@ class SharedProfileScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               final auth = context.read<AuthProvider>();
-              final bt = context.read<BluetoothProvider>();
-              if (bt.isConnected) await bt.disconnect();
               await auth.signOut();
               if (ctx.mounted) {
                 Navigator.pop(ctx);

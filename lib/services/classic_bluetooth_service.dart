@@ -15,6 +15,29 @@ class ClassicBluetoothService extends ChangeNotifier {
 
   String _rxBuffer = '';
 
+  // Continuous keep-alive — runs any time we're connected, not just
+  // inside a restricted zone. Some OEM Bluetooth stacks tear down an
+  // SPP socket they judge "idle" from the phone's side even while the
+  // Arduino is still streaming data the other way.
+  Timer? _heartbeatTimer;
+  static const Duration _heartbeatInterval = Duration(seconds: 3);
+
+  // Set by disconnect() so _handleDisconnect() knows not to
+  // auto-reconnect after a deliberate user-initiated disconnect.
+  bool _manualDisconnect = false;
+
+  // Bounded, backed-off auto-reconnect after an unexpected drop.
+  static const int _maxAutoReconnectAttempts = 4;
+
+  // Serializes concurrent send() calls so two overlapping commands
+  // (fast double-tap, or a manual command racing an automatic zone
+  // command) can't stomp on the single _pendingAck/_pendingAckCommand
+  // pair below.
+  Future<void> _sendChain = Future.value();
+
+  bool _isSending = false;
+  bool get isSending => _isSending;
+
   double? _latestDb;
   double? get latestDb => _latestDb;
 
@@ -63,6 +86,8 @@ class ClassicBluetoothService extends ChangeNotifier {
         _isConnecting = false;
         _connectedDeviceName = device.name;
         _lastDeviceAddress = device.address;
+        _manualDisconnect = false;
+        _startHeartbeat();
 
         conn.input!.listen(
           _handleIncomingData,
@@ -128,6 +153,7 @@ class ClassicBluetoothService extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
+    _manualDisconnect = true;
     await _connection?.close();
     _handleDisconnect();
   }
@@ -173,12 +199,23 @@ class ClassicBluetoothService extends ChangeNotifier {
   /// Sends a command and waits for its matching confirmation line (see
   /// _expectedReplyFor). Returns true ONLY if that exact line arrived
   /// before [timeout] — not just that the write succeeded.
+  /// Public entry point — chains calls through [_sendChain] so two
+  /// overlapping commands can't share/clobber the single
+  /// _pendingAck/_pendingAckCommand pair below.
   Future<bool> send(
     String command, {
-    Duration timeout = const Duration(seconds: 1),
-  }) async {
+    Duration timeout = const Duration(milliseconds: 1800),
+  }) {
+    final result = _sendChain.then((_) => _sendInternal(command, timeout));
+    _sendChain = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<bool> _sendInternal(String command, Duration timeout) async {
     if (!_isConnected || _connection == null) return false;
 
+    _isSending = true;
+    notifyListeners();
     try {
       _pendingAckCommand = _expectedReplyFor(command);
       _pendingAck = Completer<bool>();
@@ -193,6 +230,8 @@ class ClassicBluetoothService extends ChangeNotifier {
     } finally {
       _pendingAck = null;
       _pendingAckCommand = null;
+      _isSending = false;
+      notifyListeners();
     }
   }
 
@@ -218,18 +257,34 @@ class ClassicBluetoothService extends ChangeNotifier {
       return;
     }
     if (line.startsWith('ACK:') || line.startsWith('DONE:')) {
-      // Match against the full expected line (e.g. "DONE:CLOSE") — ACK
-      // and DONE are distinct signals now, not interchangeable.
+      // Tolerant match: endsWith instead of exact equality. A single
+      // corrupted/dropped leading byte on this link (confirmed in field
+      // testing) used to make an otherwise-valid "DONE:OPEN" line
+      // silently fail the old `==` check and eat the full timeout.
       if (_pendingAck != null &&
           !_pendingAck!.isCompleted &&
-          _pendingAckCommand == line) {
+          _pendingAckCommand != null &&
+          line.endsWith(_pendingAckCommand!)) {
         _pendingAck!.complete(true);
       }
       return;
     }
   }
 
+  void _startHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
+      sendRaw('ZPING');
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
   void _handleDisconnect() {
+    _stopHeartbeat();
     try {
       _connection?.dispose();
     } catch (_) {}
@@ -241,10 +296,41 @@ class ClassicBluetoothService extends ChangeNotifier {
       _pendingAck!.complete(false);
     }
     notifyListeners();
+
+    final wasManual = _manualDisconnect;
+    _manualDisconnect = false;
+    if (!wasManual) {
+      _attemptAutoReconnect();
+    }
+  }
+
+  /// Bounded, backed-off reconnect loop after an unexpected drop.
+  /// No-ops if the user explicitly disconnected, or if a connect is
+  /// already underway / already succeeded by the time a step runs.
+  Future<void> _attemptAutoReconnect() async {
+    if (_lastDeviceAddress == null) return;
+    for (int attempt = 1; attempt <= _maxAutoReconnectAttempts; attempt++) {
+      if (_isConnected || _isConnecting) return;
+      final delay = Duration(seconds: 2 * attempt);
+      debugPrint(
+        'Auto-reconnect attempt $attempt/$_maxAutoReconnectAttempts in ${delay.inSeconds}s',
+      );
+      await Future.delayed(delay);
+      if (_isConnected || _isConnecting) return;
+      final ok = await reconnectToLast();
+      if (ok) {
+        debugPrint('Auto-reconnect succeeded on attempt $attempt');
+        return;
+      }
+    }
+    debugPrint(
+      'Auto-reconnect: giving up after $_maxAutoReconnectAttempts attempts',
+    );
   }
 
   @override
   void dispose() {
+    _stopHeartbeat();
     _connection?.dispose();
     super.dispose();
   }

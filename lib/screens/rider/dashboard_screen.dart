@@ -308,7 +308,10 @@ class _QuickActionsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final exhaustProvider = context.watch<ExhaustProvider>();
     final btService = context.watch<ClassicBluetoothService>();
-    final isEnabled = btService.isConnected && !exhaustProvider.isAutoMode;
+    final isEnabled =
+        btService.isConnected &&
+        !exhaustProvider.isAutoMode &&
+        !btService.isSending;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

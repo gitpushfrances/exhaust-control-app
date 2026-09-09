@@ -56,11 +56,6 @@ class ExhaustProvider with ChangeNotifier {
   // State must remain stable for 1.5 seconds before it is committed.
   static const Duration _restrictedDwellTime = Duration(milliseconds: 1500);
 
-  // Periodic ZPING while inside a zone — heartbeat for the Arduino
-  // watchdog and a live "still connected" signal on the Serial Monitor.
-  Timer? _zonePingTimer;
-  static const Duration _zonePingInterval = Duration(seconds: 1);
-
   // Phase-windowed averages — captured then buffer-cleared at each
   // zone-event boundary (entry / exit-trigger / exit-window-cleared).
   double _avgDbApproach = 0.0;
@@ -265,10 +260,8 @@ class ExhaustProvider with ChangeNotifier {
         if (sent) {
           setExhaustState(ExhaustState.closed);
           _autoClosures++;
-          _zonePingTimer?.cancel();
-          _zonePingTimer = Timer.periodic(_zonePingInterval, (_) {
-            ClassicBluetoothService.instance.sendRaw('ZPING');
-          });
+          // Heartbeat is continuous at the ClassicBluetoothService level
+          // now — no longer zone-scoped here.
         } else {
           debugPrint(
             '⚠️ ZENTER failed — BT not connected. Valve state NOT updated.',
@@ -297,9 +290,6 @@ class ExhaustProvider with ChangeNotifier {
         _avgDbInside = ClassicBluetoothService.instance.averageDb;
         ClassicBluetoothService.instance.clearDbBuffer();
         _avgSpeedInside = SpeedService.instance.captureAndClear();
-
-        _zonePingTimer?.cancel();
-        _zonePingTimer = null;
 
         // Tell Arduino the rider is leaving the restricted area, and wait
         // for DONE:OPEN — confirms the valve actually finished returning,
@@ -443,7 +433,6 @@ class ExhaustProvider with ChangeNotifier {
   @override
   void dispose() {
     _exitWindowTimeoutTimer?.cancel();
-    _zonePingTimer?.cancel();
     _restrictedDwellTimer?.cancel();
     super.dispose();
   }

@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'services/auth_service.dart';
 import 'providers/auth_provider.dart';
-import 'providers/bluetooth_provider.dart';
+
 import 'providers/exhaust_provider.dart';
 import 'providers/restricted_areas_provider.dart';
 
@@ -33,7 +33,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => AuthProvider(AuthService())..checkAuthStatus(),
         ),
-        ChangeNotifierProvider(create: (_) => BluetoothProvider()),
         ChangeNotifierProvider(create: (_) => ExhaustProvider()),
         ChangeNotifierProvider(create: (_) => RestrictedAreasProvider()),
         ChangeNotifierProvider.value(value: ClassicBluetoothService.instance),
