@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../utils/map_config.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../../providers/exhaust_provider.dart';
@@ -357,13 +358,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             options: MapOptions(
               initialCenter: LatLng(_currentLat, _currentLng),
               initialZoom: 15.0,
-              minZoom: 5.0,
-              maxZoom: 18.0,
+              minZoom: MapConfig.minZoom,
+              maxZoom: MapConfig.maxZoom,
             ),
             children: [
               TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.exhaust_controller_app',
+                urlTemplate: MapConfig.tileUrl,
+                userAgentPackageName: MapConfig.userAgentPackageName,
                 tileProvider: NetworkTileProvider(
                   // flutter_map's built-in disk cache (8.2+). Tiles already
                   // seen render instantly from disk instead of waiting on
@@ -378,6 +379,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       ),
                 ),
               ),
+              MapConfig.attribution(),
               CircleLayer(
                 circles: areasProvider.areas.map((area) {
                   return CircleMarker(

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../utils/map_config.dart';
 import 'package:provider/provider.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
@@ -497,11 +498,10 @@ class _BarangaySubmitRequestScreenState
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName:
-                          'com.example.exhaust_controller_app',
+                      urlTemplate: MapConfig.tileUrl,
+                      userAgentPackageName: MapConfig.userAgentPackageName,
                     ),
+                    MapConfig.attribution(),
                     if (_boundaryLatLng.isNotEmpty)
                       PolygonLayer(
                         polygons: [
