@@ -18,8 +18,11 @@ class MapConfig {
   static const double minZoom = 5.0;
   static const double maxZoom = 18.0;
 
-  /// Credit required by the OSM licence. The widget prepends "flutter_map | ©",
-  /// so only the source name goes in the text.
-  static Widget attribution() =>
-      const SimpleAttributionWidget(source: Text('OpenStreetMap contributors'));
+  /// Credit required by the OSM licence. Shown as a small info button that
+  /// opens on tap, so it does not cover the map. The widget prepends the
+  /// copyright symbol itself, so only the source name goes in the text.
+  static Widget attribution() => RichAttributionWidget(
+    showFlutterMapAttribution: false,
+    attributions: [TextSourceAttribution('OpenStreetMap contributors')],
+  );
 }
