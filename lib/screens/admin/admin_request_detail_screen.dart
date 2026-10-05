@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import '../../utils/map_config.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 
@@ -80,11 +81,10 @@ class _AdminRequestDetailScreenState extends State<AdminRequestDetailScreen> {
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName:
-                          'com.example.exhaust_controller_app',
+                      urlTemplate: MapConfig.tileUrl,
+                      userAgentPackageName: MapConfig.userAgentPackageName,
                     ),
+                    MapConfig.attribution(),
                     CircleLayer(
                       circles: [
                         CircleMarker(
