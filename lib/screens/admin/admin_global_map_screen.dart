@@ -207,15 +207,9 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen>
                     urlTemplate:
                         'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.example.exhaust_controller_app',
-                    userAgentPackageName: 'com.example.exhaust_controller_app',
                   ),
                   CircleLayer(circles: circles),
-                  MarkerLayer(
-                    markers: [
-                      ...markers,
-                      if (locationMarker != null) locationMarker,
-                    ],
-                  ),
+                  MarkerLayer(markers: [...markers, ?locationMarker]),
                 ],
               ),
 
@@ -507,12 +501,16 @@ class _AdminGlobalMapScreenState extends State<AdminGlobalMapScreen>
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _fs.deleteRestrictedArea(docId);
+              final ok = await _fs.deleteRestrictedArea(docId);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Zone deleted'),
-                    backgroundColor: Color(0xFF10B981),
+                  SnackBar(
+                    content: Text(
+                      ok ? 'Zone deleted' : 'Delete failed. Please try again.',
+                    ),
+                    backgroundColor: ok
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFFEF4444),
                   ),
                 );
               }
